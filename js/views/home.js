@@ -3,6 +3,7 @@
 import { esc, dayLong, isoAddDays, nowIn } from '../util.js';
 import { listTrips } from '../store.js';
 import { ctx } from '../state.js';
+import { pwa } from '../pwa.js';
 
 const range = e => {
   if (!e.start) return '';
@@ -16,7 +17,10 @@ export function renderHome() {
   const today = nowIn(Intl.DateTimeFormat().resolvedOptions().timeZone).date;
   return `<div class="pad home">
     <h2 style="font-size:26px;margin:6px 2px 4px">Your trips</h2>
-    <p class="muted" style="margin:0 2px 14px">Saved in this browser. Use Backup inside a trip to move it to another device.</p>
+    <p class="muted" style="margin:0 2px 14px">Saved in this browser. Use 🔗 Share inside a trip to send it to another phone.</p>
+    ${pwa.canInstall ? `<div class="setupcard"><div style="font-size:26px">📲</div><div style="flex:1;min-width:0"><b>Install as an app</b>
+      <div class="muted" style="font-size:13px">Opens full-screen from your home screen and keeps working without a connection.</div>
+      <div class="btns" style="margin:8px 0 0"><button class="btn small primary" data-act="install">Install</button></div></div></div>` : ''}
     <div class="cards">${trips.map(e => `<div class="tripcard" data-act="open-trip" data-id="${esc(e.id)}">
       <div class="tc-ic">🧳</div><div style="flex:1;min-width:0"><h3>${esc(e.title)}</h3><div class="muted" style="font-size:13px">${esc(e.destination || '')}${e.destination && e.start ? ' · ' : ''}${esc(range(e))}</div></div><span class="muted">›</span></div>`).join('') || '<div class="empty">No trips yet.</div>'}</div>
 

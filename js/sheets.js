@@ -9,6 +9,7 @@ import { dirUrl, mapsUrl, photosUrl } from './links.js';
 import { photosOf } from './photos.js';
 import { exportTrip, listTrips, loadTrip } from './store.js';
 import { LONG_LINK } from './share.js';
+import { pwa } from './pwa.js';
 import { mapPref } from './map/index.js';
 import { ctx } from './state.js';
 import { coverBlock, thumb } from './views/components.js';
@@ -185,6 +186,7 @@ function menu() {
       <option value="schematic" ${mp === 'schematic' ? 'selected' : ''}>Always schematic</option></select>
       <p class="muted" style="font-size:12px;margin:4px 0 0">Currently: ${ctx.map?.kind === 'tiles' ? 'real map (OpenStreetMap)' : 'schematic drawing'}</p></div>
     <div class="btns">
+      ${pwa.canInstall ? '<button class="btn primary" data-act="install">📲 Install as an app</button>' : ''}
       <button class="btn" data-act="share">🔗 Share with a travel companion</button>
       <button class="btn" data-act="stays">🛏️ Hotels &amp; travel</button>
       <button class="btn" data-act="backup">💾 Backup / move to another device</button>
@@ -192,8 +194,9 @@ function menu() {
       <button class="btn" data-act="home">🧳 All trips</button>
       <button class="btn danger" data-act="delete-trip">Delete trip</button>
     </div>
+    ${!pwa.canInstall && !pwa.standalone ? `<p class="muted" style="font-size:13px;margin-top:10px">📲 To install it as an app: in Chrome tap ⋮ → “Add to Home screen” (or “Install app”).</p>` : ''}
     <h3>How this works</h3>
-    <p class="muted" style="font-size:14px">Everything is saved in this browser. Each stop has a duration; travel is estimated between stops; 📌 fixed times (bookings) hold their place and the rest of the day flows around them.</p>
+    <p class="muted" style="font-size:14px">Everything is saved in this browser, and the app keeps working offline once it has been opened. Each stop has a duration; travel is estimated between stops; 📌 fixed times (bookings) hold their place and the rest of the day flows around them.</p>
   </div>`;
 }
 

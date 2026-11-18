@@ -13,6 +13,8 @@ see it on a map, and follow it live on your phone ("where should I be now?").
 - **Map** — real OpenStreetMap tiles when available, a schematic SVG fallback otherwise.
 - **Your photos** per place (IndexedDB, stays on the device).
 - **Backup / import** a trip as JSON to move it between devices.
+- **Share link** — send the whole trip to someone in one link (stored in the link, not on a server).
+- **Installable, works offline** — add it to your home screen; it opens without a connection.
 
 No build step, no framework, no dependencies at runtime except Leaflet (lazy-loaded from cdnjs).
 

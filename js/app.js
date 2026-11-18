@@ -8,6 +8,7 @@ import { findExisting, sightToPlace, parseOpeningHours, prettyHours } from './di
 import * as net from './net.js';
 import * as store from './store.js';
 import { encodeTrip, decodeTrip, shareUrl, codeFromHash } from './share.js';
+import { initPwa, pwa, promptInstall } from './pwa.js';
 import { loadTripPhotos, addPhotos, deletePhoto } from './photos.js';
 import { createMap, setMapPref } from './map/index.js';
 import { ctx, hooks, commit, save } from './state.js';
@@ -84,6 +85,7 @@ export function renderAll() {
   mw.classList.toggle('hidden', UI.mobile && UI.view !== 'map');
   const st = panel.scrollTop;
   panel.innerHTML = (UI.canSave ? '' : `<div class="banner">This browser isn’t letting the app save. Use ⋯ → Backup to keep your changes.</div>`)
+    + (pwa.online ? '' : `<div class="banner offline">📴 Offline — your plan works; search, Discover and new map areas need a connection.</div>`)
     + (UI.view === 'now' ? renderNow() : UI.view === 'ideas' ? renderIdeas() : renderPlan());
   panel.scrollTop = st;
   renderMapChrome();
@@ -183,7 +185,8 @@ function readDraftInto(p) {
   return p;
 }
 /* ---------- finding places online ---------- */
-const OFFLINE_HINT = 'needs an internet connection (it doesn’t work inside the claude.ai preview — open the hosted app).';
+const OFFLINE_HINT_SANDBOX = 'needs an internet connection (it doesn’t work inside the claude.ai preview — open the hosted app).';
+const offlineHint = () => pwa.online ? OFFLINE_HINT_SANDBOX : 'needs an internet connection — you’re offline right now. Your plan still works.';
 const tripCenter = () => ctx.trip?.center ? { lat: ctx.trip.center[0], lng: ctx.trip.center[1] } : null;
 const clean = o => Object.fromEntries(Object.entries(o).filter(([, v]) => v != null && v !== ''));
 
@@ -197,7 +200,7 @@ function queueSearch(q) {
   searchTimer = setTimeout(async () => {
     let next;
     try { next = { q, list: await net.searchPlaces(q, tripCenter()), loading: false }; }
-    catch (e) { next = { q, list: [], loading: false, err: 'Search ' + OFFLINE_HINT }; }
+    catch (e) { next = { q, list: [], loading: false, err: 'Search ' + offlineHint() }; }
     if (UI.found?.q !== q) return; // typed on meanwhile
     UI.found = next;
     // Only swap the results box, so the search input (and the phone keyboard) stays put.
@@ -245,7 +248,7 @@ function placeFromSight(s) {
   (async () => {
     const sum = UI.sum[s.wd] || (s.wiki ? await net.wikiSummary(s.wiki) : null);
     if (sum?.extract) p.desc = sum.extract;
-    if (!p.img && sum?.thumb) p.img = sum.thumb;
+    if (sum?.thumb) p.img = sum.thumb; // direct link: faster, and can be kept offline
     commit();
     // Find the same place on OpenStreetMap for its opening hours.
     try {
@@ -283,7 +286,7 @@ async function loadDiscover(force) {
     if (!list.length) D.err = 'No famous places found here — try a wider area.';
   } catch (e) {
     if (D.key !== key) return;
-    D.err = 'Discover ' + OFFLINE_HINT;
+    D.err = 'Discover ' + offlineHint();
   }
   D.loading = false;
   renderAll();
@@ -440,6 +443,7 @@ const A = {
   },
   'reset-trip': async el => { if (!confirmTap(el, 'Tap again — replaces your changes')) return; let t; try { t = await store.loadTemplate(ctx.trip.templatePath); } catch (e) { return toast('The original plan isn’t available anymore'); } t.id = ctx.trip.id; closeSheet(); await openTrip(t); toast('Original plan restored'); },
   'delete-trip': el => { if (!confirmTap(el, 'Tap again to delete this trip')) return; store.deleteTrip(ctx.trip.id); goHome(); toast('Trip deleted'); },
+  install: async () => { const ok = await promptInstall(); if (ok) toast('Installing — find “Trips” on your home screen'); },
   // share links
   share: () => openShare(),
   'share-copy': () => UI.shareLink?.url && copyText(UI.shareLink.url, $('#shareLink')),
@@ -602,6 +606,12 @@ document.addEventListener('pointercancel', endDrag);
 export async function start() {
   shell();
   ctx.ui.canSave = ls.ok();
+  initPwa(evt => {
+    if (evt === 'installed') toast('Installed — open it from your home screen');
+    if (evt === 'offline') toast('You’re offline — your plan still works');
+    if (evt === 'online') toast('Back online');
+    renderAll(); refreshSheet();
+  });
   ctx.templates = await store.listTemplates();
 
   // carry over the first prototype's saved plan, if any

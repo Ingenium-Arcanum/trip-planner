@@ -68,10 +68,12 @@ Timeline rule: `arrival = prev.end + travel`, but not before `fixed` (wait); aft
 - OSM tiles: OK for personal use per OSM tile policy; switch provider before any wider sharing.
 
 ## Roadmap (suggested order)
-1. **Host it** (GitHub Pages / Netlify) so the phone gets the real map; keep the artifact as fallback.
-2. **PWA**: `manifest.json` + service worker caching app shell, trip JSON and visited tiles → works offline abroad.
-   Must be skipped gracefully where SW isn't allowed.
-3. **Search to add places** by name (Nominatim/Photon geocoding, respect usage policy, debounce) — hosted only.
+1. ✅ **Hosted** on GitHub Pages (push to `main` redeploys).
+2. ✅ **PWA**: `manifest.json`, `icons/`, `sw.js` (network-first app shell with 4 s fallback to cache, cache-first
+   tiles/CDN/Wikimedia images with caps), `js/pwa.js` (register, install button, `storage.persist`, online state).
+   **Adding/renaming a file in js/, css/ or icons/? Add it to `PRECACHE` in sw.js** — `tests/pwa.test.mjs` enforces it.
+   Bump `VERSION` in sw.js only to force-drop old app caches.
+3. ✅ **Search to add places** (Photon) and **Discover** (Wikidata) — hosted only.
 4. **Sync between devices**: share links are done (`js/share.js`: trip → deflate → base64url in `#t=…`,
    never sent to a server; opening offers add / update / keep both, using `editedAt` vs `sharedAt`).
    Next step would be live sync via a tiny backend.
