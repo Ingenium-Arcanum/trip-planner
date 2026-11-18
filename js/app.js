@@ -11,6 +11,7 @@ import { encodeTrip, decodeTrip, shareUrl, codeFromHash } from './share.js';
 import { initPwa, pwa, promptInstall } from './pwa.js';
 import { suggestFixes, applyOps } from './rescue.js';
 import { optimiseDay, applyOrder } from './optimise.js';
+import { autoPlan } from './autoplan.js';
 import { loadTripPhotos, addPhotos, deletePhoto } from './photos.js';
 import { createMap, setMapPref } from './map/index.js';
 import { ctx, hooks, commit, save } from './state.js';
@@ -567,6 +568,38 @@ const A = {
     UI.opt = { di: D.di, r: optimiseDay(ctx.trip, D.di) };
     commit(); toast('Undone');
   },
+  autoplan: () => {
+    // During the trip, don't plan into days that are already over.
+    const today = ctx.trip.days.findIndex(d => d.date === tripNow().date);
+    const pace = UI.ap?.pace || 'normal', minDay = Math.max(0, today);
+    UI.ap = { pace, minDay, res: autoPlan(ctx.trip, { pace, minDay }) };
+    UI.apDone = null;
+    openSheet('autoplan');
+  },
+  'ap-pace': el => {
+    const A = UI.ap; if (!A) return;
+    A.pace = el.dataset.pace;
+    A.res = autoPlan(ctx.trip, { pace: A.pace, minDay: A.minDay });
+    refreshSheet();
+  },
+  'ap-apply': () => {
+    const res = UI.ap?.res; if (!res?.added.length) return;
+    const before = JSON.parse(JSON.stringify(ctx.trip.days));
+    ctx.trip.days = res.trip.days;
+    const n = res.added.length, nd = res.days.length;
+    UI.apDone = { undo: before, firstDay: res.days[0]?.di ?? 0, msg: `Added ${n} place${n === 1 ? '' : 's'} over ${nd} day${nd === 1 ? '' : 's'}.` };
+    UI.sel = null;
+    commit(); fitDay();
+    toast('Plan made — tweak it as you like');
+  },
+  'ap-undo': () => {
+    const D = UI.apDone; if (!D) return;
+    ctx.trip.days = D.undo;
+    UI.apDone = null;
+    if (UI.ap) UI.ap.res = autoPlan(ctx.trip, { pace: UI.ap.pace, minDay: UI.ap.minDay });
+    commit(); toast('Undone');
+  },
+  'ap-show': () => { const di = UI.apDone?.firstDay ?? 0; closeSheet(); UI.view = 'plan'; UI.day = di; renderAll(); fitDay(); },
   // share links
   share: () => openShare(),
   'share-copy': () => UI.shareLink?.url && copyText(UI.shareLink.url, $('#shareLink')),

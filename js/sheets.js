@@ -11,6 +11,7 @@ import { exportTrip, listTrips, loadTrip } from './store.js';
 import { LONG_LINK } from './share.js';
 import { pwa } from './pwa.js';
 import { suggestFixes } from './rescue.js';
+import { PACES, unplannedIdeas } from './autoplan.js';
 import { mapPref } from './map/index.js';
 import { ctx } from './state.js';
 import { coverBlock, thumb } from './views/components.js';
@@ -27,7 +28,7 @@ export function closeSheet() {
 }
 export function hideSheetTemporarily(hidden) { $('#sheet').classList.toggle('hidden', hidden); }
 
-const BUILDERS = { stop, place, editPlace, travel, picker, day, menu, backup, paste, stays, choose, sight, share, incoming, rescue, optimise };
+const BUILDERS = { stop, place, editPlace, travel, picker, day, menu, backup, paste, stays, choose, sight, share, incoming, rescue, optimise, autoplan };
 export function refreshSheet(scrollTop) {
   if (!ctx.ui.sheet) return;
   const { type, args } = ctx.ui.sheet;
@@ -458,6 +459,38 @@ function optimise({ di }) {
     }).join('')}</ol>
     <div class="btns" style="margin-top:14px"><button class="btn primary" data-act="optimise-apply">Use this order</button><button class="btn" data-act="close-sheet">Keep mine</button></div>
     <p class="muted" style="font-size:12px;margin-top:10px">Travel times are estimates. Visited stops, bookings and opening hours are taken into account; a travel time you typed in yourself is reset when the stop before it changes.</p>
+  </div>`;
+  return html;
+}
+
+/* ---------- plan it for me ---------- */
+function autoplan() {
+  const t = ctx.trip, A = ctx.ui.ap, done = ctx.ui.apDone;
+  let html = `<div class="sbody" style="padding-top:22px"><h2>🪄 Plan it for me</h2>`;
+  if (done) {
+    return html + `<div class="okbox">✓ ${esc(done.msg)} <button class="btn small" data-act="ap-undo" style="margin-left:6px">↶ Undo</button></div>
+      <div class="btns" style="margin-top:12px"><button class="btn primary" data-act="ap-show">See the plan</button><button class="btn" data-act="close-sheet">Close</button></div></div>`;
+  }
+  const res = A?.res, ideas = unplannedIdeas(t).length;
+  html += `<p class="muted" style="font-size:14px;margin-top:4px">Spreads your ${ideas} saved place${ideas === 1 ? '' : 's'} over your days: places close together on the same day, each on a day it’s open, and no missed bookings. Your own stops stay where they are.</p>
+    <div class="chips">${Object.entries(PACES).map(([k, p]) => `<button class="chip ${A?.pace === k ? 'on' : ''}" data-act="ap-pace" data-pace="${k}">${p.label} · ${p.hint}</button>`).join('')}</div>`;
+  if (!ideas) return html + `<div class="empty small">No saved places to plan yet — add some from 🔭 Discover or search first.</div><div class="btns"><button class="btn primary" data-act="go-discover">🔭 Browse top sights</button></div></div>`;
+  if (!res?.added.length) {
+    html += `<div class="warnbox">Nothing fits${res?.skipped.some(s => s.reason === 'full') ? ' — your days are full for this pace. Try “Packed”, or add a day.' : '.'}</div>`;
+  } else {
+    html += `<div class="cards" style="margin-top:6px">${res.days.map(d => {
+      const day = t.days[d.di];
+      return `<div class="apday" style="--dc:${dayColor(d.di)}"><div class="apday-h"><b>${esc(dayLong(day))}</b>
+          <span class="muted">+${d.added.length} · ends ${fmt(d.after.end)} · ${minsTxt(d.after.travel)} travel</span></div>
+        <div class="apday-list">${d.added.map(id => { const p = t.places[id]; return `<span>${cat(p).e} ${esc(p.name)}</span>`; }).join('')}</div></div>`;
+    }).join('')}</div>`;
+  }
+  if (res?.skipped.length) {
+    const why = { closed: 'closed on your days', full: 'no room' };
+    html += `<p class="muted" style="font-size:13px;margin-top:12px"><b>Stays in your ideas:</b> ${res.skipped.map(s => `${esc(t.places[s.place]?.name || '')} (${why[s.reason]})`).join(', ')}.</p>`;
+  }
+  html += `<div class="btns" style="margin-top:14px">${res?.added.length ? '<button class="btn primary" data-act="ap-apply">Use this plan</button>' : ''}<button class="btn" data-act="close-sheet">Cancel</button></div>
+    <p class="muted" style="font-size:12px;margin-top:10px">Visit lengths use typical times per type of place — change them in the plan afterwards. Travel times are estimates.</p>
   </div>`;
   return html;
 }

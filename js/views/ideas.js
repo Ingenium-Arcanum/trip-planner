@@ -7,6 +7,7 @@ import { scheduledIds, placeUses } from '../schedule.js';
 import { findExisting, shortName } from '../discover.js';
 import { ctx } from '../state.js';
 import { thumb } from './components.js';
+import { unplannedIdeas } from '../autoplan.js';
 
 const dayBtns = (act, attrs) => ctx.trip.days.map((d, i) => `<button class="btn small" data-act="${act}" ${attrs} data-di="${i}">＋ ${esc(dayShort(d))}</button>`).join('');
 
@@ -53,7 +54,11 @@ function renderMine() {
       <p>${esc(p.desc || '')}</p>
       ${used.has(p.id) ? '' : `<div class="btns">${t.days.map((d, i) => `<button class="btn small" data-act="quick-add" data-id="${p.id}" data-di="${i}">＋ ${esc(dayShort(d))}</button>`).join('')}</div>`}
     </div></div>`;
+  const nIdeas = unplannedIdeas(t).length;
   return `
+    ${nIdeas >= 2 && !q ? `<div class="setupcard"><div style="font-size:26px">🪄</div><div style="flex:1;min-width:0"><b>Plan it for me</b>
+      <div class="muted" style="font-size:13px">Spread your ${nIdeas} ideas over your days — nearby places together, opening hours checked.</div>
+      <div class="btns" style="margin:8px 0 0"><button class="btn small primary" data-act="autoplan">Make a plan</button></div></div></div>` : ''}
     <input class="search" type="search" placeholder="Search your places or find one on the map…" value="${esc(ctx.ui.q || '')}" data-input="q" autocomplete="off">
     <div class="btns" style="margin:0 0 4px"><button class="btn small" data-act="new-place">✏️ Add manually</button><button class="btn small" data-act="ideas-tab" data-t="discover">🔭 Browse top sights</button></div>
     ${q.length >= 2 ? `<div class="sectionlabel">In your trip · ${all.length}</div><div class="cards">${all.map(card).join('') || '<div class="empty small">None of your places match.</div>'}</div>` + foundHtml() : `

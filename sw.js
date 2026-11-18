@@ -30,6 +30,7 @@ const PRECACHE = [
   'trips/index.json',
   'js/main.js',
   'js/app.js',
+  'js/autoplan.js',
   'js/config.js',
   'js/discover.js',
   'js/geo.js',

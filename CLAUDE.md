@@ -68,6 +68,10 @@ Best order: `js/optimise.js` (pure, tested) — local search (move one stop / re
 order and a nearest-neighbour order, scoring each candidate with computeDay: travel + 50×late min + 90×closed stops
 + 0.2×day end + a tiny cost per moved stop (ties keep your order/first stop). Locks done stops and a leading/trailing
 hotel/transport stop when no endpoints are set; drops manual hop times whose previous stop changed.
+Plan it for me: `js/autoplan.js` (pure, tested) — k-means groups ideas by area (one group per day), matches groups
+to days (open-day constraints, nearness to existing stops), then inserts each place at the cheapest feasible position
+(no new late / closed, day ends by the pace: 17/19/21 h), falling back to other days; empty days get optimiseDay.
+Works on a clone; the app swaps in `res.trip.days` with undo.
 Timeline rule: `arrival = prev.end + travel`, but not before `fixed` (wait); after `fixed` → `late` warning.
 `hours` uses JS weekdays (0 = Sunday); a missing weekday key means closed; for ticketed sights store last-entry times.
 

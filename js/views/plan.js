@@ -46,7 +46,7 @@ export function renderPlan() {
     if (sunset && !sunsetShown && r.arr >= sunset) { sunsetShown = true; html += `<div class="sunset">🌅 sunset around ${esc(day.sunset)}</div>`; }
     html += anyRow(r, k);
   });
-  html += `</div>${realStops ? '' : `<div class="empty">Nothing planned yet. Tap ＋ below, or browse <button class="linkbtn" data-act="go-discover">🔭 top sights</button>.</div>`}
+  html += `</div>${realStops ? '' : `<div class="empty">Nothing planned yet. Tap ＋ below, browse <button class="linkbtn" data-act="go-discover">🔭 top sights</button>${Object.keys(t.places).length >= 2 ? ', or let the app <button class="linkbtn" data-act="autoplan">🪄 plan it for you</button>' : ''}.</div>`}
     <button class="addbtn" data-act="add-to-day" data-at="end">＋ Add a place to ${esc(dayName(day))}</button></div>`;
   return html;
 }
