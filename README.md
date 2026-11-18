@@ -30,6 +30,8 @@ ES modules need to be served over http(s) — opening `index.html` from disk won
 
 ## Test
 
+GitHub Actions runs the tests on every push; the live site only updates when they pass.
+
 ```bash
 npm test             # node --test: scheduling engine, hours, travel, parsing
 ```

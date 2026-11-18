@@ -89,7 +89,8 @@ Timeline rule: `arrival = prev.end + travel`, but not before `fixed` (wait); aft
 - OSM tiles: OK for personal use per OSM tile policy; switch provider before any wider sharing.
 
 ## Roadmap (suggested order)
-1. ✅ **Hosted** on GitHub Pages (push to `main` redeploys).
+1. ✅ **Hosted** on GitHub Pages via `.github/workflows/test-and-deploy.yml`: every push/PR runs `npm test` + syntax/JSON
+   checks; pushes to `main` deploy only when they pass (a red run keeps the last good site live).
 2. ✅ **PWA**: `manifest.json`, `icons/`, `sw.js` (network-first app shell with 4 s fallback to cache, cache-first
    tiles/CDN/Wikimedia images with caps), `js/pwa.js` (register, install button, `storage.persist`, online state).
    **Adding/renaming a file in js/, css/ or icons/? Add it to `PRECACHE` in sw.js** — `tests/pwa.test.mjs` enforces it.
