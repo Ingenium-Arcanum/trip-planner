@@ -27,7 +27,7 @@ export function closeSheet() {
 }
 export function hideSheetTemporarily(hidden) { $('#sheet').classList.toggle('hidden', hidden); }
 
-const BUILDERS = { stop, place, editPlace, travel, picker, day, menu, backup, paste, stays, choose, sight, share, incoming, rescue };
+const BUILDERS = { stop, place, editPlace, travel, picker, day, menu, backup, paste, stays, choose, sight, share, incoming, rescue, optimise };
 export function refreshSheet(scrollTop) {
   if (!ctx.ui.sheet) return;
   const { type, args } = ctx.ui.sheet;
@@ -422,6 +422,42 @@ function rescue(args) {
       ${tg.kind === 'depart' ? '<button class="linkbtn" data-act="stays">departure time</button>' : `<button class="linkbtn" data-act="open-stop" data-id="${tg.id}">the booking</button>`}
       · <button class="linkbtn" data-act="close-sheet">the plan</button></p>
     <p class="muted" style="font-size:12px">⭐ Stops you mark as must-do (in a stop’s details) are never suggested for skipping or shortening.</p>
+  </div>`;
+  return html;
+}
+
+/* ---------- best order for a day ---------- */
+const minsTxt = m => m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}` : `${m} min`;
+
+function optimise({ di }) {
+  const t = ctx.trip, day = t.days[di], O = ctx.ui.opt, done = ctx.ui.optDone;
+  if (!day) return '';
+  let html = `<div class="sbody" style="padding-top:22px"><div class="kicker">${esc(dayLong(day))}</div><h2>Best order</h2>`;
+  if (done) {
+    return html + `<div class="okbox">✓ New order saved — ${esc(done.msg)} <button class="btn small" data-act="optimise-undo" style="margin-left:6px">↶ Undo</button></div>
+      <div class="btns" style="margin-top:12px"><button class="btn primary" data-act="close-sheet">Done</button></div></div>`;
+  }
+  const r = O?.di === di ? O.r : null;
+  if (!r) return html + `<p class="muted">Add at least 3 stops to this day first.</p><div class="btns"><button class="btn" data-act="close-sheet">OK</button></div></div>`;
+  if (!r.changed) {
+    return html + `<p style="margin-top:8px">👍 This order is already the best I can find — no shorter route that keeps your bookings and opening hours.</p>
+      <div class="btns"><button class="btn primary" data-act="close-sheet">OK</button></div></div>`;
+  }
+  const b = r.before, a = r.after, oldPos = new Map(day.stops.map((s, i) => [s.id, i + 1]));
+  const gains = [];
+  if (a.travel < b.travel) gains.push(`🚶 Travel ${minsTxt(b.travel)} → <b>${minsTxt(a.travel)}</b>`);
+  if (a.end !== b.end) gains.push(`🏁 Day ends ${fmt(b.end)} → <b>${fmt(a.end)}</b>`);
+  if (a.late < b.late) gains.push(`✓ No longer late for a booking`);
+  if (a.warns < b.warns) gains.push(`✓ Fixes ${b.warns - a.warns} opening-hours problem${b.warns - a.warns > 1 ? 's' : ''}`);
+  const stopById = new Map(day.stops.map(s => [s.id, s]));
+  html += `<div class="gains">${gains.map(g => `<div>${g}</div>`).join('')}</div>
+    <div class="sectionlabel">New order</div>
+    <ol class="neworder">${r.order.map((id, i) => {
+      const s = stopById.get(id), p = t.places[s.place], was = oldPos.get(id);
+      return `<li><span>${cat(p).e} ${esc(p.name)}</span>${was !== i + 1 ? `<small>was ${was}</small>` : ''}${s.fixed ? `<small>📌 ${esc(s.fixed)}</small>` : ''}${s.done ? '<small>✓ visited</small>' : ''}</li>`;
+    }).join('')}</ol>
+    <div class="btns" style="margin-top:14px"><button class="btn primary" data-act="optimise-apply">Use this order</button><button class="btn" data-act="close-sheet">Keep mine</button></div>
+    <p class="muted" style="font-size:12px;margin-top:10px">Travel times are estimates. Visited stops, bookings and opening hours are taken into account; a travel time you typed in yourself is reset when the stop before it changes.</p>
   </div>`;
   return html;
 }

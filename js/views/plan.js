@@ -35,6 +35,7 @@ export function renderPlan() {
     <div class="dayhead"><h2>${esc(dayLong(day))}</h2>
       <button class="chip" data-act="edit-day">▶ Start ${esc(day.start)}</button>
       <button class="chip" data-act="stays">🛏️ Hotel &amp; travel</button>
+      ${realStops >= 3 ? '<button class="chip" data-act="optimise">✨ Best order</button>' : ''}
       ${rows.length ? `<span class="chip">🏁 End ${fmt(rows[rows.length - 1].end)}</span>` : ''}
       ${sunset ? `<span class="chip">🌅 Sunset ≈${esc(day.sunset)}</span>` : ''}
       ${rows.length > 1 ? `<a class="chip" target="_blank" rel="noopener" href="${routeUrl(t, rows)}">🧭 Route in Google Maps</a>` : ''}

@@ -64,6 +64,10 @@ hours typed by the user go through `parseTypedHours` and replace OSM hours.
 Running late: `js/rescue.js` (pure, tested) finds the first late row and simulates fixes (shorten, spread,
 taxi, move after the booking, move to another day, skip) with `applyOps` on a clone; only fixes that help and
 don't make anything else late are offered. Live mode (Now screen) passes `from`/`keep`/`minDay`. `must` stops are never touched.
+Best order: `js/optimise.js` (pure, tested) — local search (move one stop / reverse a stretch) from the current
+order and a nearest-neighbour order, scoring each candidate with computeDay: travel + 50×late min + 90×closed stops
++ 0.2×day end + a tiny cost per moved stop (ties keep your order/first stop). Locks done stops and a leading/trailing
+hotel/transport stop when no endpoints are set; drops manual hop times whose previous stop changed.
 Timeline rule: `arrival = prev.end + travel`, but not before `fixed` (wait); after `fixed` → `late` warning.
 `hours` uses JS weekdays (0 = Sunday); a missing weekday key means closed; for ticketed sights store last-entry times.
 

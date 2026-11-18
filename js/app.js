@@ -10,6 +10,7 @@ import * as store from './store.js';
 import { encodeTrip, decodeTrip, shareUrl, codeFromHash } from './share.js';
 import { initPwa, pwa, promptInstall } from './pwa.js';
 import { suggestFixes, applyOps } from './rescue.js';
+import { optimiseDay, applyOrder } from './optimise.js';
 import { loadTripPhotos, addPhotos, deletePhoto } from './photos.js';
 import { createMap, setMapPref } from './map/index.js';
 import { ctx, hooks, commit, save } from './state.js';
@@ -541,6 +542,29 @@ const A = {
     if (!UI.rescueDone) return;
     ctx.trip.days = UI.rescueDone.undo;
     UI.rescueDone = null;
+    commit(); toast('Undone');
+  },
+  optimise: () => {
+    const di = UI.day;
+    UI.opt = { di, r: optimiseDay(ctx.trip, di) };
+    UI.optDone = null;
+    openSheet('optimise', { di });
+  },
+  'optimise-apply': () => {
+    const O = UI.opt; if (!O?.r?.changed) return;
+    const before = JSON.parse(JSON.stringify(ctx.trip.days[O.di].stops));
+    applyOrder(ctx.trip, O.di, O.r.order);
+    const saved = O.r.before.travel - O.r.after.travel;
+    UI.optDone = { di: O.di, undo: before, msg: saved > 0 ? saved + ' min less travel.' : 'better timing.' };
+    UI.sel = null;
+    commit(); fitDay();
+    toast('New order saved');
+  },
+  'optimise-undo': () => {
+    const D = UI.optDone; if (!D) return;
+    ctx.trip.days[D.di].stops = D.undo;
+    UI.optDone = null;
+    UI.opt = { di: D.di, r: optimiseDay(ctx.trip, D.di) };
     commit(); toast('Undone');
   },
   // share links

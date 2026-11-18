@@ -231,3 +231,8 @@ a.chip{text-decoration:none}
 .fixcard .fx-ic{font-size:22px;flex:none;width:30px;text-align:center}
 .fixcard .btn{flex:none}
 .okbox{background:color-mix(in srgb,var(--ok) 13%,transparent);color:var(--ok);font-weight:600;border-radius:10px;padding:9px 12px;margin:10px 0 4px;font-size:14px}
+/* ---------- best order ---------- */
+.gains{display:grid;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:10px;font-size:14px}
+.neworder{margin:0;padding-left:22px;display:grid;gap:6px}
+.neworder li{padding:2px 0}
+.neworder li small{margin-left:8px;color:var(--muted);font-size:12px}
