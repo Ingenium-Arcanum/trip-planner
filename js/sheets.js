@@ -10,6 +10,7 @@ import { photosOf } from './photos.js';
 import { exportTrip, listTrips, loadTrip } from './store.js';
 import { LONG_LINK } from './share.js';
 import { pwa } from './pwa.js';
+import { suggestFixes } from './rescue.js';
 import { mapPref } from './map/index.js';
 import { ctx } from './state.js';
 import { coverBlock, thumb } from './views/components.js';
@@ -26,7 +27,7 @@ export function closeSheet() {
 }
 export function hideSheetTemporarily(hidden) { $('#sheet').classList.toggle('hidden', hidden); }
 
-const BUILDERS = { stop, place, editPlace, travel, picker, day, menu, backup, paste, stays, choose, sight, share, incoming };
+const BUILDERS = { stop, place, editPlace, travel, picker, day, menu, backup, paste, stays, choose, sight, share, incoming, rescue };
 export function refreshSheet(scrollTop) {
   if (!ctx.ui.sheet) return;
   const { type, args } = ctx.ui.sheet;
@@ -91,7 +92,7 @@ function stop(stopId) {
     <h2>${esc(p.name)}</h2>
     <div class="muted">${fmt(r.arr)}${st.dur ? ' – ' + fmt(r.end) : ''}${r.tr ? ` · ${MODES[r.tr.mode]?.e} ${r.tr.min} min from ${esc(prev.name)}` : ''}</div>
     ${r.warn ? `<div class="warnbox">⚠ ${esc(r.warn)}</div>` : ''}
-    ${r.late ? `<div class="warnbox">⚠ You’ll arrive ${r.late} min after your ${esc(st.fixed)} booking.</div>` : ''}
+    ${r.late ? `<div class="warnbox">⚠ You’ll arrive ${r.late} min after your ${esc(st.fixed)} booking. <button class="btn small" data-act="rescue" data-di="${f.di}" style="margin-left:6px">🛟 Help me fix this</button></div>` : ''}
     <h3>Timing</h3>
     <div class="grid2">
       <div class="field"><label>Time here (min)</label><div class="stepper"><button data-act="dur" data-id="${st.id}" data-n="-15">−</button><input type="number" min="0" step="5" value="${st.dur || 0}" data-input="dur" data-id="${st.id}"><button data-act="dur" data-id="${st.id}" data-n="15">＋</button></div></div>
@@ -99,6 +100,7 @@ function stop(stopId) {
     </div>
     ${k > 0 ? `<button class="btn small" data-act="edit-travel" data-id="${st.id}">${MODES[r.tr.mode]?.e} Travel: ${r.tr.min} min ${MODES[r.tr.mode]?.l} — change</button>` : ''}
     <div class="field" style="margin-top:12px"><label>Note</label><textarea data-input="note" data-id="${st.id}" placeholder="Booking ref, what to order…">${esc(st.note || '')}</textarea></div>
+    <label class="toggle"><input type="checkbox" ${st.must ? 'checked' : ''} data-input="must" data-id="${st.id}"> ⭐ Must-do — never suggest skipping or shortening it</label>
     <label class="toggle"><input type="checkbox" ${st.done ? 'checked' : ''} data-input="done" data-id="${st.id}"> Visited ✓</label>
     <h3>Move</h3>
     <div class="btns">
@@ -371,4 +373,55 @@ function incoming() {
       </div>`}
     <p class="muted" style="font-size:12px;margin-top:12px">It’s saved in this browser only. Your photos stay as they are.</p>
   </div>`;
+}
+
+/* ---------- running late: suggested fixes ---------- */
+const FIX_ICON = { shorten: '✂️', spread: '✂️', taxi: '🚕', later: '↪️', day: '📅', skip: '⏭️' };
+
+/** Options for suggestFixes() from the sheet args (live mode passes from/keep/minDay). */
+export const rescueOpts = a => ({ from: a.from || 0, keep: a.keep || {}, minDay: a.minDay || 0 });
+
+/** One line under a fix: what it changes and where you end up. */
+function fixDetail(o, tg) {
+  const t = ctx.trip, bits = [];
+  const durs = o.ops.filter(op => op.op === 'dur').map(op => {
+    const f = findStop(t, op.stop); if (!f) return '';
+    return `${t.places[f.st.place]?.name}: ${f.st.dur} → ${op.dur} min`;
+  }).filter(Boolean);
+  if (o.kind === 'spread') bits.push(durs.join(' · '));
+  bits.push(o.full ? `On time: you get there at ${fmt(o.after.arr)}` : `Helps, but still ${o.after.late} min late`);
+  return bits.join(' — ');
+}
+
+function rescue(args) {
+  const t = ctx.trip, di = args.di, day = t.days[di], done = ctx.ui.rescueDone;
+  if (!day) return '';
+  const res = suggestFixes(t, di, rescueOpts(args));
+  let html = `<div class="sbody" style="padding-top:22px"><div class="kicker">${esc(dayLong(day))}</div><h2>Running late</h2>`;
+  if (done) html += `<div class="okbox">✓ ${esc(done.msg)} <button class="btn small" data-act="rescue-undo" style="margin-left:6px">↶ Undo</button></div>`;
+  if (!res) {
+    return html + `<p>${done ? 'Everything that day is on time now.' : 'Nothing is running late on this day.'}</p>
+      <div class="btns"><button class="btn primary" data-act="close-sheet">Done</button></div></div>`;
+  }
+  const tg = res.target;
+  html += `<p style="margin-top:8px">${tg.kind === 'depart'
+    ? `You’d reach <b>${esc(tg.name)}</b> at ${fmt(tg.arr)} — <b>${tg.late} min</b> after the ${esc(tg.fixed)} you need to be there.`
+    : `You’d arrive at <b>${esc(tg.name)}</b> at ${fmt(tg.arr)} — <b>${tg.late} min</b> after your ${esc(tg.fixed)} booking.`}</p>`;
+  if (!res.options.length) {
+    html += `<div class="warnbox">No single change fixes this. Change the ${tg.kind === 'depart' ? 'departure time' : 'booking time'}, or drag stops around in the plan.</div>`;
+  } else {
+    html += `<div class="sectionlabel">Ways to fix it</div><div class="cards">${res.options.map((o, i) => `
+      <div class="fixcard"><div class="fx-ic">${FIX_ICON[o.kind] || '🛟'}</div>
+        <div style="flex:1;min-width:0"><b>${esc(o.label)}</b>
+          <div class="muted" style="font-size:13px;margin-top:2px">${esc(fixDetail(o, tg))}</div>
+          ${o.newWarn ? '<div class="warnline">⚠ Afterwards a place may be closed when you get there — check the plan</div>' : ''}
+        </div>
+        <button class="btn small primary" data-act="rescue-apply" data-i="${i}">Do this</button></div>`).join('')}</div>`;
+  }
+  html += `<p class="muted" style="font-size:13px;margin-top:14px">Or change it yourself:
+      ${tg.kind === 'depart' ? '<button class="linkbtn" data-act="stays">departure time</button>' : `<button class="linkbtn" data-act="open-stop" data-id="${tg.id}">the booking</button>`}
+      · <button class="linkbtn" data-act="close-sheet">the plan</button></p>
+    <p class="muted" style="font-size:12px">⭐ Stops you mark as must-do (in a stop’s details) are never suggested for skipping or shortening.</p>
+  </div>`;
+  return html;
 }

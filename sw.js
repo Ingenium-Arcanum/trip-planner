@@ -37,6 +37,7 @@ const PRECACHE = [
   'js/net.js',
   'js/photos.js',
   'js/pwa.js',
+  'js/rescue.js',
   'js/schedule.js',
   'js/share.js',
   'js/sheets.js',

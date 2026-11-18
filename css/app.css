@@ -223,3 +223,11 @@ a.chip{text-decoration:none}
 .sharelink{font-size:12px;color:var(--muted);text-overflow:ellipsis}
 .banner.offline{background:var(--line);color:var(--ink)}
 .hours-note{font-size:12px;color:var(--muted);margin-top:2px}
+/* ---------- running late ---------- */
+.latebar{display:flex;gap:10px;align-items:center;background:var(--warnbg);color:var(--warn);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;font-size:14px}
+.latebar b{color:var(--warn)}
+.gapline button.late{border:0;background:var(--warnbg);color:var(--warn);font-weight:700;border-radius:999px;padding:3px 10px;font-size:12.5px}
+.fixcard{display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;box-shadow:var(--shadow)}
+.fixcard .fx-ic{font-size:22px;flex:none;width:30px;text-align:center}
+.fixcard .btn{flex:none}
+.okbox{background:color-mix(in srgb,var(--ok) 13%,transparent);color:var(--ok);font-weight:600;border-radius:10px;padding:9px 12px;margin:10px 0 4px;font-size:14px}

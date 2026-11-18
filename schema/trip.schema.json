@@ -46,7 +46,8 @@
         "mode": { "enum": ["auto", "walk", "transit", "taxi", "bike"], "description": "how you get here from the previous stop" },
         "min": { "type": ["number", "null"], "description": "manual travel minutes (overrides estimate)" },
         "note": { "type": "string" },
-        "done": { "type": "boolean" }
+        "done": { "type": "boolean" },
+        "must": { "type": "boolean", "description": "must-do: the running-late helper never suggests skipping or shortening it" }
       }
     },
     "place": {

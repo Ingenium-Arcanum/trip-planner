@@ -13,7 +13,7 @@ function gapHtml(r) {
   return `<div class="gap"><div></div><div class="rail"><div class="gapline">
     <button class="travel" data-act="edit-travel" data-id="${r.st.id}">${m.e} ${tr.min} min ${m.l} · ${dist}${tr.manual ? '' : ' (est.)'}</button>
     ${r.wait >= 10 ? `<span class="wait">⏳ ${r.wait} min free</span>` : ''}
-    ${r.late ? `<span class="late">⚠ ${r.late} min late</span>` : ''}
+    ${r.late ? `<button class="late" data-act="rescue">⚠ ${r.late} min late · fix</button>` : ''}
     <button class="addhere" data-act="add-to-day" data-at="${Math.max(0, r.i)}" aria-label="Insert a place here">＋</button>
   </div></div></div>`;
 }
@@ -25,7 +25,10 @@ export function renderPlan() {
   const sunset = toMin(day.sunset);
   const setUp = (t.stays || []).length || t.arrive?.place || t.depart?.place;
   const realStops = rows.filter(r => !r.st.virtual).length;
+  const late = rows.find(r => r.late > 0);
   let html = dayTabs() + `<div class="pad" style="--dc:${dayColor(di)}">
+    ${late ? `<div class="latebar"><div style="flex:1;min-width:0">⚠ You’d be <b>${late.late} min late</b> for ${esc(late.place.name)} (${esc(late.st.fixed)}).</div>
+      <button class="btn small primary" data-act="rescue">🛟 Fix it</button></div>` : ''}
     ${!setUp && !t.hideSetup ? `<div class="setupcard"><div style="font-size:26px">🛏️</div><div style="flex:1;min-width:0"><b>Where are you staying?</b>
       <div class="muted" style="font-size:13px">Add your hotel and arrival time — every day then starts and ends there, with travel times included.</div>
       <div class="btns" style="margin:8px 0 0"><button class="btn small primary" data-act="stays">Add hotel &amp; arrival</button><button class="btn small" data-act="hide-setup">Not now</button></div></div></div>` : ''}

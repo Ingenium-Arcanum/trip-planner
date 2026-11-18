@@ -39,7 +39,7 @@ export function stopCard(r, k, opts = {}) {
     <div class="badge">${st.done ? '✓' : r.n ?? k + 1}</div>
     ${thumb(p)}
     <div class="info"><div class="nm">${esc(p.name)}</div>
-      <div class="meta"><span>${cat(p).e} ${st.dur ? dur(st.dur) : cat(p).l}</span>${st.fixed ? `<span>📌 ${esc(st.fixed)}</span>` : ''}${p.tipFrom ? `<span class="uncle">★ ${esc(p.tipFrom)}</span>` : ''}${nph ? `<span>📷 ${nph}</span>` : ''}</div>
+      <div class="meta"><span>${cat(p).e} ${st.dur ? dur(st.dur) : cat(p).l}</span>${st.fixed ? `<span>📌 ${esc(st.fixed)}</span>` : ''}${st.must ? '<span>⭐ must-do</span>' : ''}${p.tipFrom ? `<span class="uncle">★ ${esc(p.tipFrom)}</span>` : ''}${nph ? `<span>📷 ${nph}</span>` : ''}</div>
       ${warns.length ? `<div class="warnline">${warns.map(esc).join('<br>')}</div>` : ''}
       ${st.note && !opts.compact ? `<div class="meta">${esc(st.note.length > 90 ? st.note.slice(0, 88) + '…' : st.note)}</div>` : ''}
     </div>

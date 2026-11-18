@@ -9,10 +9,11 @@ import * as net from './net.js';
 import * as store from './store.js';
 import { encodeTrip, decodeTrip, shareUrl, codeFromHash } from './share.js';
 import { initPwa, pwa, promptInstall } from './pwa.js';
+import { suggestFixes, applyOps } from './rescue.js';
 import { loadTripPhotos, addPhotos, deletePhoto } from './photos.js';
 import { createMap, setMapPref } from './map/index.js';
 import { ctx, hooks, commit, save } from './state.js';
-import { openSheet, closeSheet, refreshSheet, hideSheetTemporarily } from './sheets.js';
+import { openSheet, closeSheet, refreshSheet, hideSheetTemporarily, rescueOpts } from './sheets.js';
 import { renderPlan } from './views/plan.js';
 import { renderNow, tripNow } from './views/now.js';
 import { renderIdeas, foundHtml } from './views/ideas.js';
@@ -402,6 +403,22 @@ async function checkShareHash() {
   }
 }
 
+/* ---------- running late ---------- */
+/** Open the helper for day di. live: only change what's still ahead (from the Now screen). */
+function openRescue(di, live) {
+  const args = { di };
+  if (live) {
+    const now = tripNow(), rows = computeDay(ctx.trip, di);
+    const cur = rows.findIndex(r => now.min < r.end && r.st.virtual !== 'start');
+    args.from = Math.max(0, cur);
+    args.minDay = di;
+    const r = rows[cur];
+    if (r && now.min >= r.arr) args.keep = { [r.st.id]: now.min - r.arr + 10 }; // time already spent + a bit
+  }
+  UI.rescueDone = null;
+  openSheet('rescue', args);
+}
+
 const stopOf = id => findStop(ctx.trip, id);
 const rowOf = id => { const f = stopOf(id); return f && computeDay(ctx.trip, f.di).find(x => x.st.id === id); };
 function confirmTap(el, label) { if (el.dataset.sure === '1') return true; el.dataset.sure = '1'; el.textContent = label; return false; }
@@ -507,6 +524,25 @@ const A = {
     const r = await run;
     toast({ found: 'Opening hours found', none: 'OpenStreetMap has no hours for this place', nomatch: 'Couldn’t find this place on OpenStreetMap', failed: pwa.online ? 'Lookup failed — will try again later' : 'You’re offline — will try again later' }[r] || '');
   },
+  rescue: el => openRescue(el.dataset.di != null ? +el.dataset.di : UI.day, false),
+  'rescue-live': el => openRescue(+el.dataset.di, true),
+  'rescue-apply': el => {
+    const args = UI.sheet?.args; if (!args) return;
+    const res = suggestFixes(ctx.trip, args.di, rescueOpts(args));
+    const o = res?.options[+el.dataset.i]; if (!o) return;
+    const before = JSON.parse(JSON.stringify(ctx.trip.days));
+    applyOps(ctx.trip, o.ops);
+    UI.rescueDone = { msg: o.label + (o.full ? ' — you’re on time now.' : '.'), undo: before };
+    UI.sel = null;
+    commit();
+    toast(o.full ? 'Fixed — you’re on time' : 'That helps');
+  },
+  'rescue-undo': () => {
+    if (!UI.rescueDone) return;
+    ctx.trip.days = UI.rescueDone.undo;
+    UI.rescueDone = null;
+    commit(); toast('Undone');
+  },
   // share links
   share: () => openShare(),
   'share-copy': () => UI.shareLink?.url && copyText(UI.shareLink.url, $('#shareLink')),
@@ -588,6 +624,7 @@ const INPUTS = {
   fixed: el => { stopOf(el.dataset.id).st.fixed = el.value || null; commit(); },
   note: el => { stopOf(el.dataset.id).st.note = el.value; save(); renderAll(); },
   done: el => { stopOf(el.dataset.id).st.done = el.checked; commit(); },
+  must: el => { const s = stopOf(el.dataset.id).st; if (el.checked) s.must = true; else delete s.must; commit(); },
   tmin: el => { const s = stopOf(el.dataset.id).st, r = rowOf(el.dataset.id); s.min = Math.max(0, +el.value || 0); if (!s.mode || s.mode === 'auto') s.mode = r.tr.mode; commit(); },
   'day-start': el => { if (el.value) { const t = ctx.trip, di = +el.dataset.di; t.days[di].start = el.value; if (di === 0 && t.arrive) t.arrive.time = el.value; commit(); } },
   'arrive-time': el => { if (!el.value) return; const t = ctx.trip; t.arrive = { ...t.arrive, time: el.value }; t.days[0].start = el.value; commit(); },

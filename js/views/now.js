@@ -42,7 +42,6 @@ export function renderNow() {
         html += `<div class="nowcard" style="--dc:${color}">${cover(p)}<div class="body">
           <div class="kicker">${kick}</div><h2>${esc(p.name)}</h2>
           <div class="muted">Arrive ${fmt(cur.arr)}${cur.tr ? ` · ${MODES[cur.tr.mode]?.e || ''} ${cur.tr.min} min` : ''}${!travelling && cur.tr ? ` · leave by <b>${fmt(leaveBy)}</b>` : ''}${v && cur.st.fixed ? ` · be there by <b>${esc(cur.st.fixed)}</b>` : ''}</div>
-          ${cur.late ? `<div class="warnbox">⚠ You’re ${cur.late} min behind for ${esc(cur.st.fixed)}</div>` : ''}
           <div class="btns" style="margin-top:12px"><a class="btn primary" target="_blank" rel="noopener" href="${dirUrl(t, prev, p, cur.tr?.mode)}">🧭 Directions</a>
           ${v ? '' : `<button class="btn" data-act="here-now" data-id="${cur.st.id}">📍 I’m here now</button>`}
           <button class="btn" data-act="${v ? 'open-place' : 'open-stop'}" data-id="${v ? p.id : cur.st.id}">Details</button></div></div></div>`;
@@ -60,6 +59,11 @@ export function renderNow() {
             <button class="btn" data-act="open-stop" data-id="${cur.st.id}">Details</button>
           </div></div></div>`;
       }
+      // Running behind for a booking (or the departure) later today? Offer the helper — it only
+      // changes what's still ahead of you.
+      const lateAhead = rows.slice(k).find(r => r.late > 0);
+      if (lateAhead) html += `<div class="latebar"><div style="flex:1;min-width:0">⚠ At this pace you’ll be <b>${lateAhead.late} min late</b> for ${esc(lateAhead.place.name)} (${esc(lateAhead.st.fixed)}).</div>
+        <button class="btn small primary" data-act="rescue-live" data-di="${di}">🛟 Fix it</button></div>`;
       const next = rows.slice(k + 1, k + 5);
       if (next.length) html += `<div class="sectionlabel">Coming up</div><div class="upnext" style="--dc:${color}">${next.map(r => anyRow(r, rows.indexOf(r), { nohandle: 1, compact: 1 })).join('')}</div>`;
       const last = rows[rows.length - 1];
