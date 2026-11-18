@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "trip.schema.json",
+  "title": "Trip (schema 2)",
+  "type": "object",
+  "required": ["days", "places"],
+  "properties": {
+    "schema": { "const": 2 },
+    "id": { "type": "string" },
+    "title": { "type": "string" },
+    "destination": { "type": "string" },
+    "tz": { "type": "string", "description": "IANA time zone of the destination, e.g. Europe/Lisbon" },
+    "mapsSuffix": { "type": "string", "description": "Appended to place names for Google Maps searches, e.g. ', Lisbon, Portugal'" },
+    "center": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+    "basemap": { "type": ["string", "object", "null"], "description": "In template files: path to basemap.json relative to trip.json. In storage: the resolved object." },
+    "days": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["date", "stops"],
+        "properties": {
+          "id": { "type": "string" },
+          "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+          "start": { "type": "string", "pattern": "^\\d{2}:\\d{2}$" },
+          "sunset": { "type": "string", "pattern": "^\\d{2}:\\d{2}$" },
+          "stops": { "type": "array", "items": { "$ref": "#/$defs/stop" } }
+        }
+      }
+    },
+    "places": {
+      "oneOf": [
+        { "type": "array", "items": { "$ref": "#/$defs/place" } },
+        { "type": "object", "additionalProperties": { "$ref": "#/$defs/place" } }
+      ]
+    }
+  },
+  "$defs": {
+    "stop": {
+      "type": "object",
+      "required": ["place"],
+      "properties": {
+        "id": { "type": "string" },
+        "place": { "type": "string", "description": "places[].id" },
+        "dur": { "type": "number", "minimum": 0, "description": "minutes spent here" },
+        "fixed": { "type": ["string", "null"], "pattern": "^\\d{2}:\\d{2}$", "description": "booked start time" },
+        "mode": { "enum": ["auto", "walk", "transit", "taxi", "bike"], "description": "how you get here from the previous stop" },
+        "min": { "type": ["number", "null"], "description": "manual travel minutes (overrides estimate)" },
+        "note": { "type": "string" },
+        "done": { "type": "boolean" }
+      }
+    },
+    "place": {
+      "type": "object",
+      "required": ["id", "name", "lat", "lng"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "cat": { "enum": ["sight", "museum", "pub", "food", "cafe", "park", "music", "shop", "church", "activity", "nature", "transport", "hotel", "other"] },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "desc": { "type": "string" },
+        "tip": { "type": "string" },
+        "tipFrom": { "type": "string", "description": "who recommended it, shown as ★" },
+        "hoursText": { "type": "string" },
+        "hours": {
+          "type": "object",
+          "description": "JS weekday (0=Sunday) -> list of 'HH:MM-HH:MM'. Missing weekday = closed.",
+          "patternProperties": { "^[0-6]$": { "type": "array", "items": { "type": "string", "pattern": "^\\d{2}:\\d{2}-\\d{2}:\\d{2}$" } } },
+          "additionalProperties": false
+        },
+        "cost": { "type": "string" },
+        "url": { "type": "string" },
+        "q": { "type": "string", "description": "Google Maps search text override" }
+      }
+    }
+  }
+}
