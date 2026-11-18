@@ -7,6 +7,7 @@ import { computeDay, findStop, bestIndex, defaultDur, isEndpoint } from './sched
 import { findExisting, sightToPlace, parseOpeningHours, prettyHours } from './discover.js';
 import * as net from './net.js';
 import * as store from './store.js';
+import { encodeTrip, decodeTrip, shareUrl, codeFromHash } from './share.js';
 import { loadTripPhotos, addPhotos, deletePhoto } from './photos.js';
 import { createMap, setMapPref } from './map/index.js';
 import { ctx, hooks, commit, save } from './state.js';
@@ -32,6 +33,7 @@ function shell() {
       <button class="pill" data-view="now">⏱️ Now</button>
       <button class="pill" data-view="ideas">💡 Ideas</button>
     </div>
+    <button class="iconbtn" data-act="share" aria-label="Share trip" id="shareBtn" title="Share with a travel companion">🔗</button>
     <button class="iconbtn" data-act="menu" aria-label="Trip settings" id="menuBtn">⋯</button>
   </header>
   <div class="main" id="main">
@@ -64,6 +66,7 @@ export function renderAll() {
   $('#bottomNav').style.display = home ? 'none' : '';
   $('#deskViews').style.visibility = home ? 'hidden' : '';
   $('#menuBtn').style.visibility = home ? 'hidden' : '';
+  $('#shareBtn').style.display = home ? 'none' : '';
   $('#backBtn').style.display = home ? 'none' : '';
   const panel = $('#panel'), mw = $('#mapwrap');
   if (home) {
@@ -310,6 +313,37 @@ function assignSlot(pid) {
   toast('Saved — your days now start and end there');
 }
 
+/* ---------- share links ---------- */
+async function openShare() {
+  UI.shareLink = null;
+  openSheet('share');
+  try {
+    const code = await encodeTrip(ctx.trip); // the in-memory trip, so unsaved edits are included
+    UI.shareLink = { url: shareUrl(location.href, code) };
+  } catch (e) {
+    console.error(e);
+    UI.shareLink = { err: 'Couldn’t make a link in this browser. Use ⋯ → Backup instead.' };
+  }
+  if (UI.sheet?.type === 'share') refreshSheet();
+}
+async function copyText(text, input) {
+  try { await navigator.clipboard.writeText(text); toast('Link copied'); return true; }
+  catch (e) { if (input) { input.focus(); input.select(); } toast('Select the link and copy it'); return false; }
+}
+/** A '#t=…' link was opened: decode it and ask what to do. Clears the hash so a reload doesn't ask again. */
+async function checkShareHash() {
+  const code = codeFromHash(location.hash);
+  if (!code) return;
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* sandbox */ }
+  try {
+    UI.incoming = await decodeTrip(code);
+    openSheet('incoming');
+  } catch (e) {
+    console.error(e);
+    toast('This trip link is broken or incomplete — ask for a new one');
+  }
+}
+
 const stopOf = id => findStop(ctx.trip, id);
 const rowOf = id => { const f = stopOf(id); return f && computeDay(ctx.trip, f.di).find(x => x.st.id === id); };
 function confirmTap(el, label) { if (el.dataset.sure === '1') return true; el.dataset.sure = '1'; el.textContent = label; return false; }
@@ -406,6 +440,24 @@ const A = {
   },
   'reset-trip': async el => { if (!confirmTap(el, 'Tap again — replaces your changes')) return; let t; try { t = await store.loadTemplate(ctx.trip.templatePath); } catch (e) { return toast('The original plan isn’t available anymore'); } t.id = ctx.trip.id; closeSheet(); await openTrip(t); toast('Original plan restored'); },
   'delete-trip': el => { if (!confirmTap(el, 'Tap again to delete this trip')) return; store.deleteTrip(ctx.trip.id); goHome(); toast('Trip deleted'); },
+  // share links
+  share: () => openShare(),
+  'share-copy': () => UI.shareLink?.url && copyText(UI.shareLink.url, $('#shareLink')),
+  'share-native': async () => {
+    const url = UI.shareLink?.url; if (!url) return;
+    try { await navigator.share({ title: ctx.trip.title, text: 'Our trip plan: ' + ctx.trip.title, url }); }
+    catch (e) { if (e?.name !== 'AbortError') copyText(url, $('#shareLink')); }
+  },
+  'incoming-cancel': () => { UI.incoming = null; closeSheet(); },
+  'incoming-add': async el => {
+    const t = UI.incoming; if (!t) return;
+    const mode = el.dataset.mode;
+    if (mode === 'copy') { t.id = 'trip-' + uid(); t.title += ' (shared)'; }
+    UI.incoming = null; closeSheet();
+    if (!store.saveTrip(t)) return toast('This browser won’t save trips — try another browser');
+    await openTrip(t);
+    toast(mode === 'replace' ? 'Your copy is updated' : 'Trip added');
+  },
   // hotels & travel
   stays: () => { UI.pq = ''; UI.found = null; openSheet('stays'); },
   'hide-setup': () => { ctx.trip.hideSetup = true; commit(); },
@@ -573,4 +625,6 @@ export async function start() {
   const id = store.lastTripId();
   const t = (id && store.loadTrip(id)) || (trips.length === 1 ? store.loadTrip(trips[0].id) : null);
   if (t) await openTrip(t); else renderAll();
+  window.addEventListener('hashchange', checkShareHash);
+  await checkShareHash();
 }

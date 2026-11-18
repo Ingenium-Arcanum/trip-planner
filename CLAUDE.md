@@ -72,8 +72,9 @@ Timeline rule: `arrival = prev.end + travel`, but not before `fixed` (wait); aft
 2. **PWA**: `manifest.json` + service worker caching app shell, trip JSON and visited tiles → works offline abroad.
    Must be skipped gracefully where SW isn't allowed.
 3. **Search to add places** by name (Nominatim/Photon geocoding, respect usage policy, debounce) — hosted only.
-4. **Sync between devices**: today it's copy/paste JSON. Options: export to a file in a cloud folder,
-   a share-link with compressed JSON in the URL hash, or a tiny backend.
+4. **Sync between devices**: share links are done (`js/share.js`: trip → deflate → base64url in `#t=…`,
+   never sent to a server; opening offers add / update / keep both, using `editedAt` vs `sharedAt`).
+   Next step would be live sync via a tiny backend.
 5. **Sunrise/sunset** computed from `center` + date instead of the manual `sunset` field.
 6. **Real routing** (OSRM / Google Directions) to replace estimates, cached per hop.
 7. Weather per day, budget/costs per stop, packing list, notes per day.

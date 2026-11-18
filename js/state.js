@@ -32,6 +32,7 @@ export const hooks = { render: () => {}, refreshSheet: () => {} };
 let saveTimer = null;
 export function save() {
   if (!ctx.trip) return;
+  ctx.trip.editedAt = Date.now(); // real edits only (opening a trip doesn't count) — used when a shared link arrives
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     const ok = saveTrip(ctx.trip);

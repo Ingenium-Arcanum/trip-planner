@@ -7,7 +7,8 @@ import { findExisting, shortName } from './discover.js';
 import { foundHtml } from './views/ideas.js';
 import { dirUrl, mapsUrl, photosUrl } from './links.js';
 import { photosOf } from './photos.js';
-import { exportTrip } from './store.js';
+import { exportTrip, listTrips, loadTrip } from './store.js';
+import { LONG_LINK } from './share.js';
 import { mapPref } from './map/index.js';
 import { ctx } from './state.js';
 import { coverBlock, thumb } from './views/components.js';
@@ -24,7 +25,7 @@ export function closeSheet() {
 }
 export function hideSheetTemporarily(hidden) { $('#sheet').classList.toggle('hidden', hidden); }
 
-const BUILDERS = { stop, place, editPlace, travel, picker, day, menu, backup, paste, stays, choose, sight };
+const BUILDERS = { stop, place, editPlace, travel, picker, day, menu, backup, paste, stays, choose, sight, share, incoming };
 export function refreshSheet(scrollTop) {
   if (!ctx.ui.sheet) return;
   const { type, args } = ctx.ui.sheet;
@@ -184,6 +185,7 @@ function menu() {
       <option value="schematic" ${mp === 'schematic' ? 'selected' : ''}>Always schematic</option></select>
       <p class="muted" style="font-size:12px;margin:4px 0 0">Currently: ${ctx.map?.kind === 'tiles' ? 'real map (OpenStreetMap)' : 'schematic drawing'}</p></div>
     <div class="btns">
+      <button class="btn" data-act="share">🔗 Share with a travel companion</button>
       <button class="btn" data-act="stays">🛏️ Hotels &amp; travel</button>
       <button class="btn" data-act="backup">💾 Backup / move to another device</button>
       ${t.templatePath ? '<button class="btn" data-act="reset-trip">↺ Reset to original plan</button>' : ''}
@@ -287,5 +289,57 @@ function sight(wd) {
       <button class="btn" data-act="show-sight" data-wd="${wd}">🗺️ Show on map</button>
     </div>
     <p class="muted" style="font-size:12px;margin-top:12px">Check opening hours and tickets before you go.</p>
+  </div>`;
+}
+
+/* ---------- share a trip as a link ---------- */
+function share() {
+  const t = ctx.trip, L = ctx.ui.shareLink;
+  const hosted = /^https?:$/.test(location.protocol) && !!location.hostname;
+  const canShare = typeof navigator.share === 'function';
+  const kb = L?.url ? Math.max(1, Math.round(L.url.length / 1024)) : 0;
+  return `<div class="sbody" style="padding-top:22px">
+    <h2>Share this trip</h2>
+    <p class="muted" style="font-size:14px;margin-top:4px">Send this link to the person you’re travelling with. Opening it gives them a copy of the whole plan: days, hotels and your places. Photos aren’t included.</p>
+    ${!L ? '<div class="empty small">Making the link…</div>' : L.err ? `<div class="warnbox">⚠ ${esc(L.err)}</div>` : `
+      <input readonly class="sharelink" id="shareLink" value="${esc(L.url)}" aria-label="Share link">
+      <div class="btns" style="margin-top:10px">
+        ${canShare ? '<button class="btn primary" data-act="share-native">📤 Share…</button>' : ''}
+        <button class="btn ${canShare ? '' : 'primary'}" data-act="share-copy">📋 Copy link</button>
+      </div>
+      <p class="muted" style="font-size:12px;margin:6px 2px 0">${esc(t.title)} · ${kb} KB link</p>
+      ${L.url.length > LONG_LINK ? `<div class="warnbox">⚠ This link is very long. Some chat apps cut long messages off — if it doesn’t open on the other phone, use ⋯ → Backup and send the file instead.</div>` : ''}`}
+    ${hosted ? '' : `<div class="warnbox">⚠ Share links only work from the hosted app (the one on github.io), not inside a preview.</div>`}
+    <div class="tipbox">🔒 The trip is stored <b>inside the link itself</b> — it isn’t uploaded anywhere. Anyone who has the link can open it, so only send it to people you trust.</div>
+    <p class="muted" style="font-size:13px">Changed the plan later? Share a new link — opening it updates their copy.</p>
+  </div>`;
+}
+
+function incoming() {
+  const t = ctx.ui.incoming;
+  if (!t) return '';
+  const mine = listTrips().find(e => e.id === t.id);
+  const local = mine && loadTrip(t.id);
+  const newer = local && (local.editedAt || 0) > (t.sharedAt || 0);
+  const first = t.days[0], last = t.days[t.days.length - 1];
+  const nPlaces = Object.keys(t.places).length;
+  const when = t.sharedAt ? new Date(t.sharedAt).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  return `<div class="sbody" style="padding-top:22px">
+    <div class="kicker">Shared trip</div>
+    <h2>${esc(t.title)}</h2>
+    <div class="muted">${[t.destination, first ? dayShort(first) + (last !== first ? ' – ' + dayShort(last) : '') : '', t.days.length + ' day' + (t.days.length === 1 ? '' : 's'), nPlaces + ' place' + (nPlaces === 1 ? '' : 's')].filter(Boolean).map(esc).join(' · ')}</div>
+    ${when ? `<p class="muted" style="font-size:12px;margin:4px 0 0">Link made ${esc(when)}</p>` : ''}
+    ${mine ? `<p style="margin:14px 0 0">You already have this trip on this phone.</p>
+      ${newer ? `<div class="warnbox">⚠ Your copy has changes made after this link was created. Updating replaces them — choose “Keep both” if you’re not sure.</div>` : ''}
+      <div class="btns" style="margin-top:12px">
+        <button class="btn ${newer ? '' : 'primary'}" data-act="incoming-add" data-mode="replace">Update my copy</button>
+        <button class="btn ${newer ? 'primary' : ''}" data-act="incoming-add" data-mode="copy">Keep both</button>
+        <button class="btn" data-act="incoming-cancel">Cancel</button>
+      </div>` : `
+      <div class="btns" style="margin-top:14px">
+        <button class="btn primary" data-act="incoming-add" data-mode="new">Add to my trips</button>
+        <button class="btn" data-act="incoming-cancel">Cancel</button>
+      </div>`}
+    <p class="muted" style="font-size:12px;margin-top:12px">It’s saved in this browser only. Your photos stay as they are.</p>
   </div>`;
 }
