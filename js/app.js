@@ -3,8 +3,8 @@
 import { $, esc, uid, fmt, toMin, toast, dayLong, dayShort, isoAddDays, ls } from './util.js';
 import { dayColor, cat } from './config.js';
 import { parseCoords } from './geo.js';
-import { computeDay, findStop, bestIndex, defaultDur, isEndpoint } from './schedule.js';
-import { findExisting, sightToPlace, parseOpeningHours, prettyHours } from './discover.js';
+import { computeDay, findStop, bestIndex, defaultDur, isEndpoint, scheduledIds } from './schedule.js';
+import { findExisting, sightToPlace, parseOpeningHours, prettyHours, parseTypedHours } from './discover.js';
 import * as net from './net.js';
 import * as store from './store.js';
 import { encodeTrip, decodeTrip, shareUrl, codeFromHash } from './share.js';
@@ -164,6 +164,7 @@ export async function openTrip(t) {
   await loadTripPhotos(t.id);
   renderAll();
   await ensureMap(); updateMap(); renderMapChrome(); fitDay();
+  refreshHours();
 }
 export function goHome() { closeSheet(); ctx.trip = null; renderAll(); }
 
@@ -209,24 +210,83 @@ function queueSearch(q) {
   }, 350);
 }
 
-/** Look up opening hours / website for a place found on OpenStreetMap (best effort, async). */
-async function enrichFromOsm(p) {
-  if (!p.osm) return;
-  const tags = await net.osmTags(p.osm).catch(() => null);
-  if (!tags) return;
-  if (tags.opening_hours && !p.hoursText) {
+/* ---------- opening hours: look up on OpenStreetMap, retry later if that fails ---------- */
+const NO_HOURS_CATS = new Set(['hotel', 'transport']);
+const RETRY_AFTER_MIN = [0, 10, 60, 360, 1440]; // wait after the 1st, 2nd, … failed lookup
+const MAX_TRIES = 6;
+UI.hoursBusy = new Set();
+
+/** Should we (still) try to find opening hours for this place? */
+function wantsHours(p, force) {
+  if (!p || p.lat == null || p.hoursText || NO_HOURS_CATS.has(p.cat)) return false;
+  const f = p.hoursFetch;
+  if (!f || force) return true;
+  if (f.done) return false; // OSM has no hours for it, or no matching place: don't keep asking
+  return f.n < MAX_TRIES && Date.now() - f.t > RETRY_AFTER_MIN[Math.min(f.n, RETRY_AFTER_MIN.length - 1)] * 60000;
+}
+
+/**
+ * Look up opening hours (+ website and Wikipedia text) on OpenStreetMap. Finds the place on OSM
+ * first if needed. Returns 'found' | 'none' | 'nomatch' | 'failed' | 'skip'.
+ */
+async function lookupHours(p, { force = false } = {}) {
+  if (!wantsHours(p, force) || UI.hoursBusy.has(p.id)) return 'skip';
+  UI.hoursBusy.add(p.id);
+  const miss = done => { p.hoursFetch = { n: (p.hoursFetch?.n || 0) + 1, t: Date.now(), ...(done ? { done } : {}) }; return done || 'failed'; };
+  try {
+    if (!p.osm) {
+      const hits = await net.searchPlaces(p.name, p);
+      const m = hits.find(h => h.osm && Math.abs(h.lat - p.lat) < 0.004 && Math.abs(h.lng - p.lng) < 0.006);
+      if (!m) return miss('nomatch');
+      p.osm = m.osm;
+      if (m.addr && !p.addr) p.addr = m.addr;
+    }
+    const tags = await net.osmTags(p.osm);
+    if (!p.url && (tags.website || tags['contact:website'])) p.url = tags.website || tags['contact:website'];
+    const wp = (tags.wikipedia || '').match(/^([a-z-]+):(.+)$/);
+    if (wp && !p.desc) {
+      p.wiki = `https://${wp[1]}.wikipedia.org/wiki/${encodeURIComponent(wp[2].replace(/ /g, '_'))}`;
+      const sum = await net.wikiSummary(p.wiki);
+      if (sum?.extract) p.desc = sum.extract;
+    }
+    if (!tags.opening_hours) return miss('none');
+    p.oh = tags.opening_hours;                 // raw, so seasonal rules can follow the trip's dates
     p.hoursText = prettyHours(tags.opening_hours);
     const h = parseOpeningHours(tags.opening_hours);
-    if (h) p.hours = h;
+    if (h) p.hours = h; else delete p.hours;
+    p.hoursSrc = 'osm';
+    delete p.hoursFetch;
+    return 'found';
+  } catch (e) {
+    return miss();
+  } finally {
+    UI.hoursBusy.delete(p.id);
+    commit();
   }
-  if (!p.url && (tags.website || tags['contact:website'])) p.url = tags.website || tags['contact:website'];
-  const wp = (tags.wikipedia || '').match(/^([a-z-]+):(.+)$/);
-  if (wp && !p.desc) {
-    p.wiki = `https://${wp[1]}.wikipedia.org/wiki/${encodeURIComponent(wp[2].replace(/ /g, '_'))}`;
-    const sum = await net.wikiSummary(p.wiki);
-    if (sum?.extract) p.desc = sum.extract;
-  }
-  commit();
+}
+
+let sweeping = false;
+/** Background: find missing opening hours, planned stops first, a few places per round. */
+async function refreshHours() {
+  const t = ctx.trip;
+  if (!t || sweeping || !pwa.online) return;
+  sweeping = true;
+  try {
+    const planned = scheduledIds(t);
+    const todo = Object.values(t.places).filter(p => wantsHours(p)).sort((a, b) => planned.has(b.id) - planned.has(a.id)).slice(0, 8);
+    for (const p of todo) { if (ctx.trip !== t) break; await lookupHours(p); }
+  } finally { sweeping = false; }
+}
+
+/** Hours typed in the place form: understood ones give warnings too; they replace OSM hours. */
+function applyTypedHours(p, before) {
+  if ((p.hoursText || '') === (before || '')) return;
+  delete p.oh; delete p.hoursFetch;
+  if (p.hoursText) {
+    const h = parseTypedHours(p.hoursText);
+    if (h) p.hours = h; else delete p.hours;
+    p.hoursSrc = 'you';
+  } else { delete p.hours; delete p.hoursSrc; }
 }
 /** Turn a search result into a trip place (or reuse the one you already have). */
 function placeFromFound(d) {
@@ -236,7 +296,7 @@ function placeFromFound(d) {
   const p = clean({ ...rest, id: 'p' + uid() });
   t.places[p.id] = p;
   if (!t.center) t.center = [p.lat, p.lng];
-  enrichFromOsm(p);
+  lookupHours(p);
   return p;
 }
 /** Turn a Discover sight into a trip place; fetch its Wikipedia text and opening hours in the background. */
@@ -250,12 +310,7 @@ function placeFromSight(s) {
     if (sum?.extract) p.desc = sum.extract;
     if (sum?.thumb) p.img = sum.thumb; // direct link: faster, and can be kept offline
     commit();
-    // Find the same place on OpenStreetMap for its opening hours.
-    try {
-      const hits = await net.searchPlaces(p.name, p);
-      const m = hits.find(h => h.osm && Math.abs(h.lat - p.lat) < 0.004 && Math.abs(h.lng - p.lng) < 0.006);
-      if (m) { p.osm = m.osm; if (m.addr && !p.addr) p.addr = m.addr; enrichFromOsm(p); }
-    } catch (e) { /* offline: fine */ }
+    lookupHours(p); // finds it on OpenStreetMap for opening hours
   })();
   return p;
 }
@@ -410,8 +465,9 @@ const A = {
   'cancel-pick': () => { endPick(); hideSheetTemporarily(!UI.sheet); },
   'save-place': el => {
     const t = ctx.trip, args = UI.sheet.args;
-    if (args.id) { readDraftInto(t.places[args.id]); UI.draft = null; closeSheet(); commit(); return toast('Saved'); }
+    if (args.id) { const p = t.places[args.id], before = p.hoursText; readDraftInto(p); applyTypedHours(p, before); UI.draft = null; closeSheet(); commit(); lookupHours(p); return toast('Saved'); }
     const d = readDraftInto(UI.draft || {});
+    applyTypedHours(d, undefined);
     if (!d.name?.trim()) return toast('Give it a name');
     if (d.lat == null) return toast('Set a location (tap map or paste coordinates)');
     const p = { cat: 'sight', ...d, id: 'p' + uid(), name: d.name.trim() };
@@ -444,6 +500,13 @@ const A = {
   'reset-trip': async el => { if (!confirmTap(el, 'Tap again — replaces your changes')) return; let t; try { t = await store.loadTemplate(ctx.trip.templatePath); } catch (e) { return toast('The original plan isn’t available anymore'); } t.id = ctx.trip.id; closeSheet(); await openTrip(t); toast('Original plan restored'); },
   'delete-trip': el => { if (!confirmTap(el, 'Tap again to delete this trip')) return; store.deleteTrip(ctx.trip.id); goHome(); toast('Trip deleted'); },
   install: async () => { const ok = await promptInstall(); if (ok) toast('Installing — find “Trips” on your home screen'); },
+  'hours-lookup': async el => {
+    const p = ctx.trip.places[el.dataset.id]; if (!p) return;
+    const run = lookupHours(p, { force: true });
+    refreshSheet();
+    const r = await run;
+    toast({ found: 'Opening hours found', none: 'OpenStreetMap has no hours for this place', nomatch: 'Couldn’t find this place on OpenStreetMap', failed: pwa.online ? 'Lookup failed — will try again later' : 'You’re offline — will try again later' }[r] || '');
+  },
   // share links
   share: () => openShare(),
   'share-copy': () => UI.shareLink?.url && copyText(UI.shareLink.url, $('#shareLink')),
@@ -609,7 +672,7 @@ export async function start() {
   initPwa(evt => {
     if (evt === 'installed') toast('Installed — open it from your home screen');
     if (evt === 'offline') toast('You’re offline — your plan still works');
-    if (evt === 'online') toast('Back online');
+    if (evt === 'online') { toast('Back online'); refreshHours(); }
     renderAll(); refreshSheet();
   });
   ctx.templates = await store.listTemplates();

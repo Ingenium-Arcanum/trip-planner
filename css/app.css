@@ -222,3 +222,4 @@ a.chip{text-decoration:none}
 /* ---------- share ---------- */
 .sharelink{font-size:12px;color:var(--muted);text-overflow:ellipsis}
 .banner.offline{background:var(--line);color:var(--ink)}
+.hours-note{font-size:12px;color:var(--muted);margin-top:2px}

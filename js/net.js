@@ -5,7 +5,7 @@
 //   Photon      photon.komoot.io         search places by name (search-as-you-type is allowed)
 //   Wikidata    query.wikidata.org       famous places around a point (ranked by #Wikipedias)
 //   Wikipedia   *.wikipedia.org REST     short summary + picture for a place
-//   Overpass    overpass-api.de (+mirror) opening_hours / website of one OSM object (often slow)
+//   OSM API     api.openstreetmap.org    opening_hours / website of one OSM object (Overpass as backup)
 
 import { photonToPlace, sightsQuery, parseSights, dedupeFound } from './discover.js';
 import { ls } from './util.js';
@@ -84,17 +84,25 @@ export async function wikiSummary(articleUrl) {
 }
 
 const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
-/** Tags of one OSM object ('N123' / 'W5' / 'R9'): { opening_hours, website, … } or null. Best effort. */
+/**
+ * Tags of one OSM object ('N123' / 'W5' / 'R9'), e.g. { opening_hours, website, wikipedia }.
+ * Returns {} when the object has no tags. Throws when every source failed (try again later).
+ * Asks the main OSM API first (fast, one object, fine for light interactive use), then Overpass.
+ */
 export async function osmTags(osm) {
   const m = (osm || '').match(/^([NWR])(\d+)$/);
-  if (!m) return null;
+  if (!m) return {};
   const kind = { N: 'node', W: 'way', R: 'relation' }[m[1]];
+  try {
+    const j = await getJSON(`https://api.openstreetmap.org/api/0.6/${kind}/${m[2]}.json`, { timeout: 8000 });
+    return j.elements?.find(e => e.type === kind && String(e.id) === m[2])?.tags || {};
+  } catch (e) { /* fall through to Overpass */ }
   const q = `[out:json][timeout:8];${kind}(${m[2]});out tags;`;
   for (const ep of OVERPASS) {
     try {
       const j = await getJSON(ep + '?data=' + encodeURIComponent(q), { timeout: 9000 });
-      return j.elements?.[0]?.tags || null;
+      return j.elements?.[0]?.tags || {};
     } catch (e) { /* try the next mirror */ }
   }
-  return null;
+  throw new Error('Opening hours lookup failed');
 }

@@ -60,12 +60,28 @@ function daySet(sel) {
   return out;
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MON = '(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)';
+const MONTH_PREFIX = new RegExp(`^(${MON}(?:-${MON})?(?:,${MON}(?:-${MON})?)*)\\s+(.*)$`);
+
+/** "Apr-Sep,Nov-Feb" -> Set of month indexes (0 = Jan), wrapping over New Year. */
+function monthSet(sel) {
+  const out = new Set();
+  for (const part of sel.split(',')) {
+    const [a, b = a] = part.split('-').map(m => MONTHS.indexOf(m));
+    for (let m = a; ; m = (m + 1) % 12) { out.add(m); if (m === b) break; }
+  }
+  return out;
+}
+
 /**
  * Parse the common subset of OSM opening_hours ("Mo-Fr 09:00-17:30; Sa,Su 10:00-16:00", "24/7",
  * "Mo off", overnight "18:00-02:00"). Public-holiday rules ("PH off") are skipped.
- * Returns null for anything more exotic (months, weeks, sunrise, comments…) — keep it as text then.
+ * Seasonal rules ("Apr-Sep Mo-Sa 09:30-19:00") need `month` (0 = Jan): rules for other months are
+ * skipped, later rules override earlier ones as in OSM. Without `month` they make it return null.
+ * Returns null for anything more exotic (specific dates, weeks, sunrise, comments…) — keep it as text then.
  */
-export function parseOpeningHours(s) {
+export function parseOpeningHours(s, { month } = {}) {
   if (!s || typeof s !== 'string') return null;
   s = s.trim();
   if (s === '24/7') return Object.fromEntries(DAYS.map((_, d) => [String(d), ['00:00-24:00']]));
@@ -75,6 +91,12 @@ export function parseOpeningHours(s) {
     rule = rule.trim();
     if (!rule) continue;
     if (/^PH\b|^SH\b/.test(rule)) continue;
+    const mp = rule.match(MONTH_PREFIX);
+    if (mp) {
+      if (month == null) return null;
+      if (!monthSet(mp[1]).has(month)) continue; // rule is for another season
+      rule = mp[2].trim();
+    }
     const m = rule.match(/^([A-Za-z,\- ]+?)?\s*((?:\d{1,2}:\d{2}-\d{1,2}:\d{2}\+?\s*,?\s*)+|off|closed)$/);
     if (!m) return null;
     let sel = (m[1] || '').trim().replace(/\s+/g, '');
@@ -104,6 +126,88 @@ export function prettyHours(s) {
   if (!s) return '';
   const names = { Mo: 'Mon', Tu: 'Tue', We: 'Wed', Th: 'Thu', Fr: 'Fri', Sa: 'Sat', Su: 'Sun', PH: 'holidays' };
   return s.replace(/\b(Mo|Tu|We|Th|Fr|Sa|Su|PH)\b/g, m => names[m]).replace(/-/g, '–').replace(/;\s*/g, ' · ').replace(/\b0(\d):/g, '$1:');
+}
+
+/* ---------- hours typed by a person ("Daily 10–17", "Mon–Fri 9–5pm, Sat 10–16") ---------- */
+const DAY_WORDS = [
+  [/\b(mondays?|mon|mo)\b\.?/g, 'Mo'], [/\b(tuesdays?|tues|tue|tu)\b\.?/g, 'Tu'], [/\b(wednesdays?|wed|we)\b\.?/g, 'We'],
+  [/\b(thursdays?|thurs|thur|thu|th)\b\.?/g, 'Th'], [/\b(fridays?|fri|fr)\b\.?/g, 'Fr'],
+  [/\b(saturdays?|sat|sa)\b\.?/g, 'Sa'], [/\b(sundays?|sun|su)\b\.?/g, 'Su']
+];
+const D = '(?:Mo|Tu|We|Th|Fr|Sa|Su)';
+const hhmm = (h, m) => pad(h) + ':' + pad(m);
+
+/**
+ * Turn hours as people type them into the app's weekly hours (same shape as parseOpeningHours),
+ * or null if it can't be understood. Handles day names/ranges, "daily", "weekdays", "closed",
+ * 9 / 9:30 / 9.30 / 9am, ranges with - – to, several rules split by "," "·" ";" or new lines,
+ * and the app's own prettyHours() output.
+ */
+export function parseTypedHours(text) {
+  if (!text || typeof text !== 'string') return null;
+  let s = ' ' + text.toLowerCase() + ' ';
+  s = s.replace(/[–—]/g, '-').replace(/\s+(to|till|until|tot)\s+/g, '-');
+  s = s.replace(/\b(daily|every ?day|all week|7 days(?: a week)?|open)\b/g, ' ');
+  s = s.replace(/\bweekdays\b/g, ' Mo-Fr ').replace(/\bweekends?\b/g, ' Sa,Su ');
+  s = s.replace(/\bclosed\b/g, ' off ');
+  for (const [re, code] of DAY_WORDS) s = s.replace(re, code);
+  s = s.replace(new RegExp(`(${D})\\s+and\\s+(${D})`, 'g'), '$1,$2');
+  // time ranges -> HH:MM-HH:MM
+  let bad = false;
+  s = s.replace(/(\d{1,2})(?:[:.h](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?\s*-\s*(\d{1,2})(?:[:.h](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?/g,
+    (all, h1, m1 = '0', s1 = '', h2, m2 = '0', s2 = '') => {
+      let a = +h1, b = +h2;
+      const pm1 = s1.startsWith('p'), pm2 = s2.startsWith('p'), am1 = s1.startsWith('a'), am2 = s2.startsWith('a');
+      if (pm1 && a < 12) a += 12; if (am1 && a === 12) a = 0;
+      if (pm2 && b < 12) b += 12; if (am2 && b === 12) b = 0;
+      if (!s1 && pm2 && a + 12 < b) a += 12;                       // "1-5pm" -> 13-17
+      if (!s1 && !s2 && b < a && b <= 7 && a <= 12) b += 12;       // "9-5" -> 9-17
+      if (a > 24 || b > 26 || +m1 > 59 || +m2 > 59) bad = true;
+      return ' ' + hhmm(a, +m1) + '-' + hhmm(b, +m2) + ' ';
+    });
+  if (bad) return null;
+  // Walk the comma-separated parts: days without times wait for the next part ("Sat, Sun 10-16"),
+  // a part with times or "off" closes a rule, and a part with only times adds to the rule before
+  // ("Tu 12-14, 18-22"). Anything we don't recognise makes the whole thing "not understood".
+  const DAYSEL = new RegExp(`${D}(?:\\s*-\\s*${D})?`, 'g'), TIMES = /\d{2}:\d{2}-\d{2}:\d{2}/g;
+  const rules = [];
+  for (const group of s.split(/[;·|\n]/)) {
+    let pending = [];
+    const start = rules.length;
+    for (let chunk of group.split(',')) {
+      chunk = chunk.trim();
+      if (!chunk) continue;
+      const days = (chunk.match(DAYSEL) || []).map(x => x.replace(/\s/g, ''));
+      const times = chunk.match(TIMES) || [];
+      const off = /\boff\b/.test(chunk);
+      const rest = chunk.replace(DAYSEL, '').replace(TIMES, '').replace(/\boff\b/g, '').replace(/[\s\-:]/g, '');
+      if (rest) return null;
+      if (!times.length && !off) { pending.push(...days); continue; }
+      const sel = [...pending, ...days];
+      pending = [];
+      const last = rules[rules.length - 1];
+      if (!sel.length && !off && rules.length > start && last.times.length) { last.times.push(...times); continue; }
+      rules.push({ days: sel, times, off });
+    }
+    if (pending.length) return null; // days with no times ("Mon, Tue")
+  }
+  if (!rules.length) return null;
+  return parseOpeningHours(rules.map(r => (r.days.join(',') + ' ' + (r.off ? 'off' : r.times.join(','))).trim()).join('; '));
+}
+
+const hoursMemo = new Map();
+/**
+ * The weekly hours to use for `place` on `date` ('YYYY-MM-DD'): the OSM opening_hours (place.oh) for
+ * that month when it can be read, else place.hours. null = unknown (no warnings).
+ */
+export function hoursFor(place, date) {
+  if (place?.oh && date) {
+    const month = +date.slice(5, 7) - 1, k = place.oh + '|' + month;
+    if (!hoursMemo.has(k)) hoursMemo.set(k, parseOpeningHours(place.oh, { month }));
+    const h = hoursMemo.get(k);
+    if (h) return h;
+  }
+  return place?.hours || null;
 }
 
 /* ---------- Wikidata: famous places around a point ---------- */

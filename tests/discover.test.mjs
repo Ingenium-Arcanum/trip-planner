@@ -1,7 +1,61 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseOpeningHours, prettyHours, classifySight, parseSights, photonToPlace, osmCat, findExisting, sightsQuery, shortName, dedupeFound } from '../js/discover.js';
-import { hoursCheck } from '../js/schedule.js';
+import { parseOpeningHours, prettyHours, classifySight, parseSights, photonToPlace, osmCat, findExisting, sightsQuery, shortName, dedupeFound, parseTypedHours, hoursFor } from '../js/discover.js';
+import { hoursCheck, computeDay } from '../js/schedule.js';
+import { normalize } from '../js/store.js';
+
+const every = r => Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map(d => [d, [r]]));
+
+test('seasonal opening_hours: rules for the trip month win, later rules override', () => {
+  const oh = 'Mo-Sa 09:30-18:00; Mar-Oct Su 12:30-14:30,16:30-18:00; Apr-Sep Mo-Sa 09:30-19:00; Nov-Feb Su 12:30-17:00; Nov-Feb Mo-Sa 09:30-17:00';
+  assert.equal(parseOpeningHours(oh), null, 'no month known → can’t say');
+  const nov = parseOpeningHours(oh, { month: 10 });
+  assert.deepEqual(nov['1'], ['09:30-17:00']);
+  assert.deepEqual(nov['0'], ['12:30-17:00']);
+  const jul = parseOpeningHours(oh, { month: 6 });
+  assert.deepEqual(jul['1'], ['09:30-19:00']);
+  assert.deepEqual(jul['0'], ['12:30-14:30', '16:30-18:00']);
+  assert.deepEqual(parseOpeningHours('Dec-Feb 10:00-16:00; Mar-Nov 09:00-18:00', { month: 0 })['3'], ['10:00-16:00'], 'wraps over New Year');
+  assert.equal(parseOpeningHours('Dec 24 off; Mo-Fr 09:00-17:00', { month: 11 }), null, 'specific dates not supported');
+});
+
+test('hoursFor uses OSM hours for the date’s month, else typed hours', () => {
+  const oh = 'Apr-Sep 09:00-19:00; Oct-Mar 10:00-16:00';
+  assert.deepEqual(hoursFor({ oh }, '2030-07-06')['6'], ['09:00-19:00']);
+  assert.deepEqual(hoursFor({ oh }, '2030-11-23')['6'], ['10:00-16:00']);
+  assert.deepEqual(hoursFor({ oh: 'nonsense', hours: every('08:00-09:00') }, '2030-11-23')['1'], ['08:00-09:00']);
+  assert.equal(hoursFor({}, '2030-11-23'), null);
+});
+
+test('computeDay warns using seasonal hours', () => {
+  const t = normalize({ title: 'T', places: [{ id: 'a', name: 'A', cat: 'sight', lat: 50, lng: 4, oh: 'Apr-Sep 09:00-19:00; Oct-Mar 10:00-16:00' }],
+    days: [{ date: '2030-11-23', start: '17:00', stops: [{ place: 'a', dur: 30 }] }, { date: '2030-07-06', start: '17:00', stops: [{ place: 'a', dur: 30 }] }] });
+  assert.match(computeDay(t, 0)[0].warn, /Closed by 17:00/, 'closed in November at 17:00');
+  assert.equal(computeDay(t, 1)[0].warn, null, 'open in July at 17:00');
+});
+
+test('parseTypedHours understands how people write hours', () => {
+  const p = parseTypedHours;
+  assert.deepEqual(p('Daily 10–17'), every('10:00-17:00'));
+  assert.deepEqual(p('10am-5pm'), every('10:00-17:00'));
+  assert.deepEqual(p('1-5pm')['3'], ['13:00-17:00']);
+  const wk = p('Mon–Fri 9–17, Sat 10–16');
+  assert.deepEqual(wk['1'], ['09:00-17:00']); assert.deepEqual(wk['6'], ['10:00-16:00']); assert.equal(wk['0'], undefined);
+  assert.deepEqual(p('Mon–Sat 9:30–18:00 · Sun 12:30–17:00')['0'], ['12:30-17:00'], 'the app’s own format');
+  const tue = p('Tue-Sun 10-18; Mon closed');
+  assert.equal(tue['1'], undefined); assert.deepEqual(tue['0'], ['10:00-18:00']);
+  assert.deepEqual(p('closed mondays, tue-sun 10:00 to 18:00')['2'], ['10:00-18:00']);
+  assert.equal(p('closed mondays, tue-sun 10:00 to 18:00')['1'], undefined);
+  assert.deepEqual(p('weekdays 9-5, weekends 10am-4pm')['5'], ['09:00-17:00']);
+  assert.deepEqual(p('Sat and Sun 11-16')['6'], ['11:00-16:00']);
+  assert.deepEqual(p('Mon: 9.30-17.30')['1'], ['09:30-17:30']);
+  assert.deepEqual(p('18-2')['5'], ['18:00-26:00'], 'past midnight');
+  assert.deepEqual(p('Tue, Thu 12-14, 18-22')['4'], ['12:00-14:00', '18:00-22:00'], 'two time ranges, same days');
+  assert.equal(p('Mon, Tue'), null, 'days without times');
+  assert.equal(p('ask at the door'), null);
+  assert.equal(p('10-17 except holidays'), null, 'unknown words → not guessed');
+  assert.equal(p(''), null);
+});
 
 test('opening_hours: weekday ranges, lists and overrides', () => {
   assert.deepEqual(parseOpeningHours('Mo-Fr 09:30-17:30; Sa 09:30-18:00; Su 09:30-17:00'), {

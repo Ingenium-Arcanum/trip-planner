@@ -51,12 +51,16 @@ trip  { schema, id, title, destination, tz, mapsSuffix, center:[lat,lng], basema
         arrive?:{place, time}, depart?:{place, time /* be there by */}, discKm?, hideSetup? }
 stop  { id, place, dur(min), fixed?'HH:MM', mode:'auto'|'walk'|'transit'|'taxi'|'bike', min?, note?, done? }
 place { id, name, cat, lat, lng, desc?, tip?, tipFrom?, hoursText?, hours?{'0'..'6':['HH:MM-HH:MM']},
-        cost?, url?, q? (Google Maps search text), addr?, img? (web picture), wiki?, wd? (Wikidata id), osm? ('N123') }
+        cost?, url?, q? (Google Maps search text), addr?, img? (web picture), wiki?, wd? (Wikidata id), osm? ('N123'),
+        oh? (raw OSM opening_hours), hoursSrc?'osm'|'you', hoursFetch?{n, t, done?:'none'|'nomatch'} (retry state) }
 ```
 Hotels/arrival/departure add virtual *endpoint* rows to `computeDay` (`st.virtual='start'|'end'`, ids `@s:<dayId>`/`@e:<dayId>`,
 `r.n` = real stop number). An explicit first/last stop at the same place replaces the endpoint (older plans).
-Online lookups live in `net.js` (Photon search, Wikidata top sights, Wikipedia summaries, Overpass opening hours);
-their pure parsing/filtering is in `discover.js` (tested). All of it fails soft in the artifact sandbox.
+Online lookups live in `net.js` (Photon search, Wikidata top sights, Wikipedia summaries, opening hours via the
+OSM API with Overpass as backup); their pure parsing/filtering is in `discover.js` (tested). All of it fails soft
+in the artifact sandbox. Opening hours: `app.js` `lookupHours` / `refreshHours` (retries with back-off, planned stops
+first); the timeline uses `hoursFor(place, date)` so seasonal OSM rules ("Apr-Sep …") follow the trip month;
+hours typed by the user go through `parseTypedHours` and replace OSM hours.
 Timeline rule: `arrival = prev.end + travel`, but not before `fixed` (wait); after `fixed` → `late` warning.
 `hours` uses JS weekdays (0 = Sunday); a missing weekday key means closed; for ticketed sights store last-entry times.
 

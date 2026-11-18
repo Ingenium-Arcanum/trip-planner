@@ -3,7 +3,7 @@
 import { $, esc, fmt, dayLong, dayName, dayShort, isoAddDays } from './util.js';
 import { CATS, MODES, cat, dayColor } from './config.js';
 import { computeDay, findStop, placeUses, scheduledIds } from './schedule.js';
-import { findExisting, shortName } from './discover.js';
+import { findExisting, shortName, hoursFor } from './discover.js';
 import { foundHtml } from './views/ideas.js';
 import { dirUrl, mapsUrl, photosUrl } from './links.js';
 import { photosOf } from './photos.js';
@@ -38,12 +38,37 @@ export function refreshSheet(scrollTop) {
   card.scrollTop = scrollTop ? 0 : st;
 }
 
+/** The Hours line: the hours + where they came from, or ways to find them when unknown. */
+function hoursRow(p) {
+  const t = ctx.trip;
+  if (p.hoursText) {
+    const used = t.days.some(d => hoursFor(p, d.date));
+    const src = p.hoursSrc === 'osm' ? 'from OpenStreetMap — check before you go' : p.hoursSrc === 'you' ? 'added by you' : '';
+    const note = used ? '✓ used for warnings' : '⚠ not understood, so no warnings';
+    return `<dt>Hours</dt><dd>${esc(p.hoursText)}<div class="hours-note">${[src, note].filter(Boolean).map(esc).join(' · ')}</div></dd>`;
+  }
+  if (['hotel', 'transport'].includes(p.cat)) return '';
+  const busy = ctx.ui.hoursBusy?.has(p.id), f = p.hoursFetch;
+  const status = busy ? 'Looking up…'
+    : f?.done === 'none' ? 'Not listed on OpenStreetMap'
+    : f?.done === 'nomatch' ? 'Couldn’t find this place on OpenStreetMap'
+    : f ? 'Lookup didn’t work — will try again later'
+    : 'Unknown';
+  return `<dt>Hours</dt><dd><span class="muted">${status}</span>
+    <div class="btns" style="margin-top:6px">
+      <a class="btn small" target="_blank" rel="noopener" href="${mapsUrl(t, p)}">🕒 Check on Google Maps</a>
+      ${busy ? '' : `<button class="btn small" data-act="hours-lookup" data-id="${p.id}">↻ Look up again</button>`}
+      <button class="btn small" data-act="edit-place" data-id="${p.id}">✏️ Type them in</button>
+    </div></dd>`;
+}
+
 function placeInfo(p, prev, mode) {
   const t = ctx.trip, ph = photosOf(t.id, p.id);
+  const hrs = hoursRow(p);
   return `
     ${p.desc ? `<p style="margin:8px 0 0">${esc(p.desc)}</p>` : ''}
     ${p.tip ? `<div class="tipbox">${p.tipFrom ? `<b>★ ${esc(p.tipFrom)}:</b> ` : '💡 '}${esc(p.tip)}</div>` : ''}
-    ${(p.hoursText || p.cost || p.addr) ? `<h3>Practical</h3><dl class="kv">${p.addr ? `<dt>Address</dt><dd>${esc(p.addr)}</dd>` : ''}${p.hoursText ? `<dt>Hours</dt><dd>${esc(p.hoursText)}</dd>` : ''}${p.cost ? `<dt>Cost</dt><dd>${esc(p.cost)}</dd>` : ''}</dl>` : ''}
+    ${(hrs || p.cost || p.addr) ? `<h3>Practical</h3><dl class="kv">${p.addr ? `<dt>Address</dt><dd>${esc(p.addr)}</dd>` : ''}${hrs}${p.cost ? `<dt>Cost</dt><dd>${esc(p.cost)}</dd>` : ''}</dl>` : ''}
     <div class="btns" style="margin-top:14px">
       <a class="btn primary" target="_blank" rel="noopener" href="${dirUrl(t, prev, p, mode)}">🧭 Directions</a>
       <a class="btn" target="_blank" rel="noopener" href="${mapsUrl(t, p)}">📍 Google Maps</a>
@@ -120,9 +145,10 @@ function editPlace(args) {
       <div class="field"><label>Tip from (optional)</label><input data-draft="tipFrom" value="${v('tipFrom')}" placeholder="e.g. a local friend"></div>
     </div>
     <div class="grid2">
-      <div class="field"><label>Opening hours (text)</label><input data-draft="hoursText" value="${v('hoursText')}" placeholder="Daily 10–17"></div>
+      <div class="field"><label>Opening hours</label><input data-draft="hoursText" value="${v('hoursText')}" placeholder="Daily 10–17"></div>
       <div class="field"><label>Cost</label><input data-draft="cost" value="${v('cost')}"></div>
     </div>
+    <p class="muted" style="font-size:12px;margin:-4px 0 10px">Hours like “Daily 10–17” or “Mon–Fri 9–17, Sat 10–16, Sun closed” also give a warning when a visit doesn’t fit.</p>
     <div class="field"><label>Website</label><input data-draft="url" value="${v('url')}" placeholder="https://"></div>
     <div class="field"><label>Google Maps search text (optional)</label><input data-draft="q" value="${v('q')}" placeholder="${esc((p.name || 'Name') + (t.mapsSuffix || ''))}"></div>
     <div class="btns" style="margin-top:6px"><button class="btn primary" data-act="save-place">${args.id ? 'Save' : 'Create place'}</button>

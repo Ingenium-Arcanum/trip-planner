@@ -7,6 +7,7 @@
 import { toMin, fmt, dateParts, WD } from './util.js';
 import { hav } from './geo.js';
 import { MODES, WALK_MAX_KM, CATS } from './config.js';
+import { hoursFor } from './discover.js';
 
 export function estimate(mode, km) {
   const m = MODES[mode] || MODES.transit;
@@ -116,7 +117,7 @@ export function computeDay(trip, di, { ends = true } = {}) {
     // Being early for your flight isn't "waiting at the door": arrive when you arrive.
     if (st.virtual === 'end' && wait) { arr = ready; }
     const end = arr + (Number(st.dur) || 0);
-    const warn = st.virtual ? null : hoursCheck(place, wd, arr, end);
+    const warn = st.virtual ? null : hoursCheck({ hours: hoursFor(place, day.date) }, wd, arr, end);
     rows.push({ st, place, i, n: st.virtual ? null : ++n, tr, ready, arr, end, wait, late, warn });
     t = end;
   });
