@@ -204,13 +204,18 @@ function day(di) {
 }
 
 function menu() {
-  const t = ctx.trip, mp = mapPref();
+  const t = ctx.trip, mp = mapPref(), first = t.days[0]?.date || '', last = t.days[t.days.length - 1]?.date || '';
   return `<div class="sbody" style="padding-top:22px"><h2>Trip settings</h2>
     <div class="field" style="margin-top:12px"><label>Trip name</label><input value="${esc(t.title)}" data-input="trip-title"></div>
     <div class="grid2">
       <div class="field"><label>Destination</label><input value="${esc(t.destination || '')}" data-input="trip-dest"></div>
       <div class="field"><label>Time zone</label><input value="${esc(t.tz)}" data-input="trip-tz"></div>
     </div>
+    <div class="grid2">
+      <div class="field"><label>First day</label><input type="date" value="${esc(first)}" data-input="trip-start"></div>
+      <div class="field"><label>Last day</label><input type="date" value="${esc(last)}" min="${esc(first)}" data-input="trip-end"></div>
+    </div>
+    <p class="muted" style="font-size:12px;margin:-4px 0 12px">Changing the first day moves the whole trip: every day keeps its plan and hotel nights move along. A later last day adds empty days.</p>
     <div class="field"><label>Added to Google Maps searches</label><input value="${esc(t.mapsSuffix || '')}" data-input="trip-suffix" placeholder=", Lisbon, Portugal"></div>
     <div class="field"><label>Map style</label><select data-input="map-mode">
       <option value="auto" ${mp === 'auto' ? 'selected' : ''}>Automatic (real map when available)</option>

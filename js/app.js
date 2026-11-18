@@ -771,6 +771,17 @@ document.addEventListener('click', e => {
 });
 
 /* ================= form inputs ================= */
+/** Trip settings → First / Last day. */
+function setDates(start, end) {
+  const t = ctx.trip, r = store.setTripDates(t, start, end);
+  if (!r.ok) { toast(r.error); refreshSheet(); return; }
+  UI.day = Math.min(UI.day || 0, t.days.length - 1); UI.preview = null;
+  const n = Math.abs(r.shift);
+  const parts = [r.shift ? `Trip moved ${n} day${n === 1 ? '' : 's'} ${r.shift > 0 ? 'later' : 'earlier'}` : '',
+    r.added ? `${r.added} day${r.added === 1 ? '' : 's'} added` : '', r.removed ? `${r.removed} empty day${r.removed === 1 ? '' : 's'} removed` : ''].filter(Boolean);
+  if (parts.length) toast(parts.join(' · ') + (r.shift % 7 ? ' — check opening hours' : ''));
+  commit();
+}
 const INPUTS = {
   dur: el => { stopOf(el.dataset.id).st.dur = Math.max(0, +el.value || 0); commit(); },
   fixed: el => { stopOf(el.dataset.id).st.fixed = el.value || null; commit(); },
@@ -785,6 +796,8 @@ const INPUTS = {
   'stay-to': el => { const st = ctx.trip.stays[+el.dataset.i]; st.to = el.value; if (st.to <= st.from) st.from = isoAddDays(st.to, -1); commit(); },
   'day-date': el => { if (el.value) { ctx.trip.days[+el.dataset.di].date = el.value; commit(); } },
   'day-sunset': el => { ctx.trip.days[+el.dataset.di].sunset = el.value || undefined; commit(); },
+  'trip-start': el => setDates(el.value, null),
+  'trip-end': el => setDates(ctx.trip.days[0].date, el.value),
   'trip-title': el => { ctx.trip.title = el.value || 'My trip'; commit(); },
   'trip-dest': el => { ctx.trip.destination = el.value; commit(); },
   'trip-tz': el => { try { new Intl.DateTimeFormat('en', { timeZone: el.value }); ctx.trip.tz = el.value; commit(); } catch (e) { toast('Unknown time zone'); } },
