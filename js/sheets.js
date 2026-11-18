@@ -1,6 +1,6 @@
 // Bottom sheets (dialogs on desktop). Each builder returns HTML or '' (= close).
 
-import { $, esc, fmt, dayLong, dayName, dayShort, isoAddDays } from './util.js';
+import { $, esc, fmt, dayLong, dayName, dayShort, isoAddDays, ls } from './util.js';
 import { CATS, MODES, cat, dayColor } from './config.js';
 import { computeDay, findStop, placeUses, scheduledIds } from './schedule.js';
 import { findExisting, shortName, hoursFor } from './discover.js';
@@ -10,6 +10,7 @@ import { photosOf } from './photos.js';
 import { exportTrip, listTrips, loadTrip } from './store.js';
 import { LONG_LINK } from './share.js';
 import { pwa } from './pwa.js';
+export const routingOn = () => ls.get('tp.routing') !== 'off';
 import { suggestFixes } from './rescue.js';
 import { PACES, unplannedIdeas } from './autoplan.js';
 import { nearbyCandidates, distLabel } from './nearby.js';
@@ -167,16 +168,16 @@ function travel(stopId) {
   const st = r.st, prev = rows[rows.indexOf(r) - 1].place;
   return `<div class="sbody" style="padding-top:22px">
     <h2>Getting there</h2>
-    <p class="muted">${esc(prev.name)} → ${esc(r.place.name)} · ${r.tr.d.toFixed(1)} km straight line</p>
+    <p class="muted">${esc(prev.name)} → ${esc(r.place.name)} · ${r.tr.routed ? `${r.tr.d.toFixed(1)} km walking route` : `${r.tr.d.toFixed(1)} km straight line`}</p>
     <div class="field"><label>How</label><div class="btns">
       <button class="pill ${!st.mode || st.mode === 'auto' ? 'on' : ''}" data-act="tmode" data-id="${st.id}" data-m="auto">Auto</button>
       ${Object.entries(MODES).map(([k, m]) => `<button class="pill ${st.mode === k ? 'on' : ''}" data-act="tmode" data-id="${st.id}" data-m="${k}">${m.e} ${m.l}</button>`).join('')}
     </div></div>
-    <div class="field"><label>Minutes ${st.min == null ? '(estimated — type to override)' : ''}</label>
+    <div class="field"><label>Minutes ${st.min == null ? (r.tr.routed ? '(walking route — type to override)' : '(estimated — type to override)') : ''}</label>
       <div class="stepper"><button data-act="tmin" data-id="${st.id}" data-n="-5">−</button><input type="number" min="0" value="${r.tr.min}" data-input="tmin" data-id="${st.id}"><button data-act="tmin" data-id="${st.id}" data-n="5">＋</button>
       ${st.min != null ? `<button class="btn small" data-act="tmin-reset" data-id="${st.id}">Use estimate</button>` : ''}</div></div>
     <div class="btns" style="margin-top:10px"><a class="btn primary" target="_blank" rel="noopener" href="${dirUrl(t, prev, r.place, r.tr.mode)}">🧭 Check in Google Maps</a><button class="btn" data-act="close-sheet">Done</button></div>
-    <p class="muted" style="font-size:12px">Estimates use straight-line distance and average speeds. Override with real times from Google Maps.</p>
+    <p class="muted" style="font-size:12px">${r.tr.routed ? 'Walking time from a real route (OpenStreetMap).' : 'Estimated from straight-line distance and average speeds.'} Taxi, public transport and bike are estimates — override with real times from Google Maps.</p>
   </div>`;
 }
 
@@ -215,6 +216,10 @@ function menu() {
       <option value="auto" ${mp === 'auto' ? 'selected' : ''}>Automatic (real map when available)</option>
       <option value="schematic" ${mp === 'schematic' ? 'selected' : ''}>Always schematic</option></select>
       <p class="muted" style="font-size:12px;margin:4px 0 0">Currently: ${ctx.map?.kind === 'tiles' ? 'real map (OpenStreetMap)' : 'schematic drawing'}</p></div>
+    <div class="field"><label>Walking times</label><select data-input="routing">
+      <option value="on" ${routingOn() ? 'selected' : ''}>Real walking routes</option>
+      <option value="off" ${routingOn() ? '' : 'selected'}>Estimates only (nothing sent)</option></select>
+      <p class="muted" style="font-size:12px;margin:4px 0 0">Real routes send the locations of your stops (incl. your hotel) to routing.openstreetmap.de. Routes you already have are kept.</p></div>
     <div class="btns">
       ${pwa.canInstall ? '<button class="btn primary" data-act="install">📲 Install as an app</button>' : ''}
       <button class="btn" data-act="share">🔗 Share with a travel companion</button>

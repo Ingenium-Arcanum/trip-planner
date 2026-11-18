@@ -12,6 +12,7 @@
     "tz": { "type": "string", "description": "IANA time zone of the destination, e.g. Europe/Lisbon" },
     "mapsSuffix": { "type": "string", "description": "Appended to place names for Google Maps searches, e.g. ', Lisbon, Portugal'" },
     "center": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+    "routes": { "type": "object", "description": "Walking routes per hop: { \"lat,lng>lat,lng\": { \"m\": minutes, \"km\": distance } }", "additionalProperties": { "type": "object" } },
     "basemap": { "type": ["string", "object", "null"], "description": "In template files: path to basemap.json relative to trip.json. In storage: the resolved object." },
     "days": {
       "type": "array",

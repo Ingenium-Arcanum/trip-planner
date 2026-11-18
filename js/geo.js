@@ -37,3 +37,6 @@ export function centroid(points) {
   if (!pts.length) return null;
   return { lat: pts.reduce((s, p) => s + p.lat, 0) / pts.length, lng: pts.reduce((s, p) => s + p.lng, 0) / pts.length };
 }
+
+/** Key for a hop in trip.routes: from → to, coordinates rounded to ~1 m (moving a place = new key). */
+export const routeKey = (a, b) => `${(+a.lat).toFixed(5)},${(+a.lng).toFixed(5)}>${(+b.lat).toFixed(5)},${(+b.lng).toFixed(5)}`;

@@ -74,11 +74,15 @@ to days (open-day constraints, nearness to existing stops), then inserts each pl
 Works on a clone; the app swaps in `res.trip.days` with undo.
 Near me: `js/nearby.js` (pure, tested: openState, nextIndex, nearbyCandidates). The app asks for geolocation only
 on tap, falls back to the current plan stop, and sends only a ~100 m rounded position to Wikidata (`roughly`).
+Walking routes: `js/routing.js` (pure, tested) lists days with walkable hops (≤3 km) lacking a route; app.js `fetchRoutes`
+asks routing.openstreetmap.de once per day (max 1 req/s, usage policy), stores legs in `trip.routes` keyed by `routeKey`
+(geo.js), prunes unused ones, saves without touching `editedAt`. Auto mode walks when the routed walk ≤ `WALK_MAX_MIN`.
+Users can switch it off (Trip settings → Walking times; `tp.routing` in localStorage).
 Timeline rule: `arrival = prev.end + travel`, but not before `fixed` (wait); after `fixed` → `late` warning.
 `hours` uses JS weekdays (0 = Sunday); a missing weekday key means closed; for ticketed sights store last-entry times.
 
 ## Known limitations / tech debt
-- Travel times are straight-line estimates (`config.MODES` speeds). Users override per hop.
+- Walking uses real routes when known (`trip.routes`, see below); transit/taxi/bike are straight-line estimates (`config.MODES` speeds). Users override per hop.
 - Times past midnight are shown with ⁺ but hours checks don't handle overnight opening.
 - Leaflet labels (permanent tooltips) can overlap; schematic map has its own collision handling.
 - `renderAll()` rebuilds the whole panel; fine for <100 stops.
@@ -95,6 +99,6 @@ Timeline rule: `arrival = prev.end + travel`, but not before `fixed` (wait); aft
    never sent to a server; opening offers add / update / keep both, using `editedAt` vs `sharedAt`).
    Next step would be live sync via a tiny backend.
 5. **Sunrise/sunset** computed from `center` + date instead of the manual `sunset` field.
-6. **Real routing** (OSRM / Google Directions) to replace estimates, cached per hop.
+6. ✅ **Real walking routes** (FOSSGIS OSRM foot). Transit routing still open (no free source).
 7. Weather per day, budget/costs per stop, packing list, notes per day.
 8. Playwright UI tests (drag, add place, Now preview).

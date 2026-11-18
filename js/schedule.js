@@ -5,8 +5,8 @@
 // fixed time (you wait) — arriving after it is flagged as "late".
 
 import { toMin, fmt, dateParts, WD } from './util.js';
-import { hav } from './geo.js';
-import { MODES, WALK_MAX_KM, CATS } from './config.js';
+import { hav, routeKey } from './geo.js';
+import { MODES, WALK_MAX_KM, WALK_MAX_MIN, CATS } from './config.js';
 import { hoursFor } from './discover.js';
 
 export function estimate(mode, km) {
@@ -15,21 +15,33 @@ export function estimate(mode, km) {
   return Math.max(2, Math.round(m.overhead + km * m.detour / m.kmh * 60));
 }
 
-/** Auto mode choice: walk short hops, transit for longer ones. */
-export function autoTravel(a, b) {
+/**
+ * Auto mode choice: walk short hops, transit for longer ones.
+ * With a real walking route (trip.routes, see js/routing.js) the walk uses its time and distance,
+ * and a hop counts as walkable when that route takes at most WALK_MAX_MIN.
+ */
+export function autoTravel(a, b, routes) {
   const d = hav(a, b);
-  if (d < 0.05) return { mode: 'walk', min: 0, d };
+  const r = routes?.[routeKey(a, b)];
+  if (d < 0.05 && !r) return { mode: 'walk', min: 0, d };
+  if (r) {
+    return r.m <= WALK_MAX_MIN
+      ? { mode: 'walk', min: Math.max(1, Math.round(r.m)), d: r.km, routed: true }
+      : { mode: 'transit', min: estimate('transit', d), d };
+  }
   const mode = d <= WALK_MAX_KM ? 'walk' : 'transit';
   return { mode, min: estimate(mode, d), d };
 }
 
 /** Travel into `stop` from `prevPlace`, honouring manual mode/minutes overrides. */
-export function travelFor(prevPlace, place, stop) {
-  const a = autoTravel(prevPlace, place);
+export function travelFor(prevPlace, place, stop, routes) {
+  const a = autoTravel(prevPlace, place, routes);
   if (stop.mode && stop.mode !== 'auto') {
+    const r = stop.mode === 'walk' && stop.min == null ? routes?.[routeKey(prevPlace, place)] : null;
+    if (r) return { mode: 'walk', min: Math.max(1, Math.round(r.m)), d: r.km, manual: true, routed: true };
     return { mode: stop.mode, min: stop.min != null ? stop.min : estimate(stop.mode, a.d), d: a.d, manual: true };
   }
-  return { ...a, min: stop.min != null ? stop.min : a.min, manual: stop.min != null };
+  return { ...a, min: stop.min != null ? stop.min : a.min, manual: stop.min != null, routed: stop.min == null && !!a.routed };
 }
 
 /**
@@ -107,7 +119,7 @@ export function computeDay(trip, di, { ends = true } = {}) {
   list.forEach(({ st, i }) => {
     const place = trip.places[st.place];
     if (!place || place.lat == null) return;
-    const tr = rows.length ? travelFor(rows[rows.length - 1].place, place, st) : null;
+    const tr = rows.length ? travelFor(rows[rows.length - 1].place, place, st, trip.routes) : null;
     const ready = t + (tr ? tr.min : 0);
     const fixed = toMin(st.fixed) ?? (toBy && toBy.id === st.id ? toMin(toBy.at) : null);
     let arr = ready, wait = 0, late = 0;

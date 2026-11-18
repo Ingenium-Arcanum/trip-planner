@@ -41,6 +41,7 @@ const PRECACHE = [
   'js/pwa.js',
   'js/optimise.js',
   'js/rescue.js',
+  'js/routing.js',
   'js/schedule.js',
   'js/share.js',
   'js/sheets.js',

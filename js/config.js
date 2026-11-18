@@ -31,6 +31,8 @@ export const MODES = {
 };
 /** Auto mode walks up to this distance (km, straight line), otherwise assumes transit. */
 export const WALK_MAX_KM = 2.3;
+/** With a real walking route, walk when it takes at most this many minutes. */
+export const WALK_MAX_MIN = 35;
 
 export const STORAGE = {
   index: 'tp.trips',          // [{id,title,destination,start,end,updated}]

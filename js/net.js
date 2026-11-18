@@ -86,6 +86,18 @@ export async function wikiSummary(articleUrl) {
   } catch (e) { return null; }
 }
 
+/**
+ * Walking route through `points` (in order) from the OpenStreetMap routing server (FOSSGIS,
+ * routing.openstreetmap.de, foot profile). Returns one { min, km } per leg. Usage policy: max one
+ * request per second, no heavy use — the app asks once per day of the plan and keeps the result.
+ */
+export async function walkRoute(points) {
+  const coords = points.map(p => `${(+p.lng).toFixed(5)},${(+p.lat).toFixed(5)}`).join(';');
+  const j = await getJSON(`https://routing.openstreetmap.de/routed-foot/route/v1/driving/${coords}?overview=false&steps=false`, { timeout: 12000 });
+  if (j.code !== 'Ok' || !j.routes?.[0]) throw new Error('No route');
+  return j.routes[0].legs.map(l => ({ min: l.duration / 60, km: l.distance / 1000 }));
+}
+
 const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
 /**
  * Tags of one OSM object ('N123' / 'W5' / 'R9'), e.g. { opening_hours, website, wikipedia }.

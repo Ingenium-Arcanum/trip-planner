@@ -11,7 +11,7 @@ function gapHtml(r) {
   const tr = r.tr, m = MODES[tr.mode] || MODES.walk;
   const dist = tr.d < 1 ? Math.round(tr.d * 100) * 10 + ' m' : tr.d.toFixed(1) + ' km';
   return `<div class="gap"><div></div><div class="rail"><div class="gapline">
-    <button class="travel" data-act="edit-travel" data-id="${r.st.id}">${m.e} ${tr.min} min ${m.l} · ${dist}${tr.manual ? '' : ' (est.)'}</button>
+    <button class="travel" data-act="edit-travel" data-id="${r.st.id}">${m.e} ${tr.min} min ${m.l} · ${dist}${tr.manual || tr.routed ? '' : ' (est.)'}</button>
     ${r.wait >= 10 ? `<span class="wait">⏳ ${r.wait} min free</span>` : ''}
     ${r.late ? `<button class="late" data-act="rescue">⚠ ${r.late} min late · fix</button>` : ''}
     <button class="addhere" data-act="add-to-day" data-at="${Math.max(0, r.i)}" aria-label="Insert a place here">＋</button>

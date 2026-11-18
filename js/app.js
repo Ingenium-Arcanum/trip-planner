@@ -13,10 +13,11 @@ import { suggestFixes, applyOps } from './rescue.js';
 import { optimiseDay, applyOrder } from './optimise.js';
 import { autoPlan } from './autoplan.js';
 import { nextIndex, roughly } from './nearby.js';
+import { routeRequests, storeLegs, pruneRoutes } from './routing.js';
 import { loadTripPhotos, addPhotos, deletePhoto } from './photos.js';
 import { createMap, setMapPref } from './map/index.js';
 import { ctx, hooks, commit, save } from './state.js';
-import { openSheet, closeSheet, refreshSheet, hideSheetTemporarily, rescueOpts } from './sheets.js';
+import { openSheet, closeSheet, refreshSheet, hideSheetTemporarily, rescueOpts, routingOn } from './sheets.js';
 import { renderPlan } from './views/plan.js';
 import { renderNow, tripNow } from './views/now.js';
 import { renderIdeas, foundHtml } from './views/ideas.js';
@@ -95,6 +96,7 @@ export function renderAll() {
   panel.scrollTop = st;
   renderMapChrome();
   updateMap();
+  queueRoutes();
 }
 
 /* ================= map ================= */
@@ -469,6 +471,35 @@ async function loadNearSights() {
   N.loadingSights = false; refreshSheet();
 }
 
+/* ---------- real walking times (background) ---------- */
+let routeTimer = null, routeBusy = false, routePauseUntil = 0;
+/** After changes settle, fetch walking routes for days that have new walks. Cheap when nothing is missing. */
+function queueRoutes() {
+  clearTimeout(routeTimer);
+  routeTimer = setTimeout(fetchRoutes, 1500);
+}
+async function fetchRoutes() {
+  const t = ctx.trip;
+  if (!t || routeBusy || !pwa.online || !routingOn() || Date.now() < routePauseUntil) return;
+  const reqs = routeRequests(t);
+  if (!reqs.length) return;
+  routeBusy = true;
+  try {
+    reqs.sort((a, b) => (b.di === UI.day) - (a.di === UI.day)); // the day you're looking at first
+    for (const r of reqs.slice(0, 6)) {
+      if (ctx.trip !== t) break;
+      storeLegs(t, r.points, await net.walkRoute(r.points));
+      await new Promise(res => setTimeout(res, 1100)); // routing server: max one request per second
+    }
+    pruneRoutes(t);
+    // Background data, not an edit: save without touching editedAt.
+    store.saveTrip(t);
+    if (ctx.trip === t) { renderAll(); refreshSheet(); }
+  } catch (e) {
+    routePauseUntil = Date.now() + 10 * 60000; // service down / offline: try again in 10 min
+  } finally { routeBusy = false; }
+}
+
 const stopOf = id => findStop(ctx.trip, id);
 const rowOf = id => { const f = stopOf(id); return f && computeDay(ctx.trip, f.di).find(x => x.st.id === id); };
 function confirmTap(el, label) { if (el.dataset.sure === '1') return true; el.dataset.sure = '1'; el.textContent = label; return false; }
@@ -758,6 +789,7 @@ const INPUTS = {
   'trip-dest': el => { ctx.trip.destination = el.value; commit(); },
   'trip-tz': el => { try { new Intl.DateTimeFormat('en', { timeZone: el.value }); ctx.trip.tz = el.value; commit(); } catch (e) { toast('Unknown time zone'); } },
   'trip-suffix': el => { ctx.trip.mapsSuffix = el.value; commit(); },
+  routing: el => { ls.set('tp.routing', el.value); routePauseUntil = 0; if (el.value === 'on') queueRoutes(); toast(el.value === 'on' ? 'Real walking routes on' : 'Walking times are estimates now'); },
   'map-mode': async el => { setMapPref(el.value); ctx.map?.destroy(); ctx.map = null; await ensureMap(); renderAll(); fitDay(); refreshSheet(); }
 };
 document.addEventListener('change', async e => {
@@ -830,7 +862,7 @@ export async function start() {
   initPwa(evt => {
     if (evt === 'installed') toast('Installed — open it from your home screen');
     if (evt === 'offline') toast('You’re offline — your plan still works');
-    if (evt === 'online') { toast('Back online'); refreshHours(); }
+    if (evt === 'online') { toast('Back online'); refreshHours(); routePauseUntil = 0; queueRoutes(); }
     renderAll(); refreshSheet();
   });
   ctx.templates = await store.listTemplates();
