@@ -12,6 +12,7 @@ import { LONG_LINK } from './share.js';
 import { pwa } from './pwa.js';
 import { suggestFixes } from './rescue.js';
 import { PACES, unplannedIdeas } from './autoplan.js';
+import { nearbyCandidates, distLabel } from './nearby.js';
 import { mapPref } from './map/index.js';
 import { ctx } from './state.js';
 import { coverBlock, thumb } from './views/components.js';
@@ -28,7 +29,7 @@ export function closeSheet() {
 }
 export function hideSheetTemporarily(hidden) { $('#sheet').classList.toggle('hidden', hidden); }
 
-const BUILDERS = { stop, place, editPlace, travel, picker, day, menu, backup, paste, stays, choose, sight, share, incoming, rescue, optimise, autoplan };
+const BUILDERS = { stop, place, editPlace, travel, picker, day, menu, backup, paste, stays, choose, sight, share, incoming, rescue, optimise, autoplan, nearby };
 export function refreshSheet(scrollTop) {
   if (!ctx.ui.sheet) return;
   const { type, args } = ctx.ui.sheet;
@@ -491,6 +492,52 @@ function autoplan() {
   }
   html += `<div class="btns" style="margin-top:14px">${res?.added.length ? '<button class="btn primary" data-act="ap-apply">Use this plan</button>' : ''}<button class="btn" data-act="close-sheet">Cancel</button></div>
     <p class="muted" style="font-size:12px;margin-top:10px">Visit lengths use typical times per type of place — change them in the plan afterwards. Travel times are estimates.</p>
+  </div>`;
+  return html;
+}
+
+/* ---------- near me ---------- */
+const NEAR_KM = [[0.5, '500 m'], [1, '1 km'], [2, '2 km']];
+function openBadge(o) {
+  if (o.state === 'open') return `<span class="tag">Open now${o.until != null ? ' · until ' + fmt(o.until) : ''}</span>`;
+  if (o.state === 'closed') return `<span class="tag closed">Closed now${o.opens != null ? ' · opens ' + fmt(o.opens) : ''}</span>`;
+  return '';
+}
+function nearby() {
+  const t = ctx.trip, N = ctx.ui.near;
+  if (!N) return '';
+  let html = `<div class="sbody" style="padding-top:22px"><h2>📍 Near me</h2>`;
+  if (N.status === 'locating') return html + `<div class="empty small">Finding where you are…</div></div>`;
+  const where = N.here?.source === 'gps' ? `you${N.here.acc ? ` (±${Math.round(N.here.acc)} m)` : ''}` : N.here ? esc(N.here.label || 'your current stop') : '';
+  if (N.err) html += `<div class="warnbox">${esc(N.err)}</div>`;
+  if (!N.here) {
+    return html + `<div class="btns" style="margin-top:10px"><button class="btn primary" data-act="near-locate">📍 Try again</button>
+      ${N.planSpot ? `<button class="btn" data-act="near-plan">Use ${esc(N.planSpot.label)}</button>` : ''}</div></div>`;
+  }
+  html += `<p class="muted" style="font-size:13px;margin:4px 0 0">Within walking distance of ${where}.
+      ${N.here.source !== 'gps' ? '<button class="linkbtn" data-act="near-locate">Use my location</button>' : ''}</p>
+    <div class="chips">${NEAR_KM.map(([k, l]) => `<button class="chip ${N.km === k ? 'on' : ''}" data-act="near-km" data-km="${k}">${l}</button>`).join('')}</div>`;
+  const c = nearbyCandidates(t, N.here, { km: N.km, date: N.date, min: N.min, sights: N.sights || [] });
+  const card = x => {
+    const key = x.kind === 'idea' ? `data-id="${x.id}"` : `data-wd="${x.wd}"`;
+    return `<div class="fcard">${thumb(x.item)}<div style="flex:1;min-width:0">
+      <div class="nm">${esc(x.kind === 'sight' ? shortName(x.name, t.destination) : x.name)}</div>
+      <div class="meta"><span>🚶 ${x.walk} min · ${distLabel(x.km)}</span><span>${cat(x).e} ${cat(x).l}</span>${x.planned ? '<span>✓ planned another day</span>' : ''}</div>
+      <div class="meta">${openBadge(x.open)}</div>
+      <div class="btns" style="margin-top:6px">
+        <button class="btn small primary" data-act="near-add" data-kind="${x.kind}" ${key}>＋ Add next</button>
+        <a class="btn small" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${x.lat},${x.lng}&travelmode=walking">🧭 Go</a>
+      </div></div></div>`;
+  };
+  const ideas = c.filter(x => x.kind === 'idea'), sights = c.filter(x => x.kind === 'sight').slice(0, 15);
+  html += `<div class="sectionlabel">Your places nearby · ${ideas.length}</div>
+    <div class="cards">${ideas.map(card).join('') || '<div class="empty small">None of your saved places are this close.</div>'}</div>
+    <div class="sectionlabel">Worth seeing nearby${N.loadingSights ? ' · looking…' : ''}</div>
+    <div class="cards">${sights.map(card).join('') || (N.loadingSights ? '<div class="empty small">Looking up famous places around you…</div>' : N.sightsErr ? `<div class="empty small">${esc(N.sightsErr)}</div>` : '<div class="empty small">Nothing famous this close — try a bigger distance.</div>')}</div>
+    <div class="sectionlabel">Food &amp; drink nearby</div>
+    <div class="chips">${[['🍽️', 'Restaurants', 'restaurants'], ['☕', 'Cafés', 'cafes'], ['🍺', 'Pubs', 'pubs']].map(([e, l, q]) =>
+      `<a class="chip" target="_blank" rel="noopener" href="https://www.google.com/maps/search/${q}/@${N.here.lat},${N.here.lng},16z">${e} ${l} ↗</a>`).join('')}</div>
+    <p class="muted" style="font-size:12px;margin-top:12px">🔒 Your location is only used on this phone to measure distances; the sights search gets it rounded to about 100 m. Nothing is stored.</p>
   </div>`;
   return html;
 }

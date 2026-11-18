@@ -72,6 +72,8 @@ Plan it for me: `js/autoplan.js` (pure, tested) — k-means groups ideas by area
 to days (open-day constraints, nearness to existing stops), then inserts each place at the cheapest feasible position
 (no new late / closed, day ends by the pace: 17/19/21 h), falling back to other days; empty days get optimiseDay.
 Works on a clone; the app swaps in `res.trip.days` with undo.
+Near me: `js/nearby.js` (pure, tested: openState, nextIndex, nearbyCandidates). The app asks for geolocation only
+on tap, falls back to the current plan stop, and sends only a ~100 m rounded position to Wikidata (`roughly`).
 Timeline rule: `arrival = prev.end + travel`, but not before `fixed` (wait); after `fixed` → `late` warning.
 `hours` uses JS weekdays (0 = Sunday); a missing weekday key means closed; for ticketed sights store last-entry times.
 

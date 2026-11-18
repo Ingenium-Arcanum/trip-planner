@@ -241,3 +241,5 @@ a.chip{text-decoration:none}
 .apday-h{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
 .apday-h .muted{font-size:13px}
 .apday-list{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:6px;font-size:14px}
+/* ---------- near me ---------- */
+.tag.closed{background:var(--warnbg);color:var(--warn)}

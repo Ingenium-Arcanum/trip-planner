@@ -60,7 +60,7 @@ function renderMine() {
       <div class="muted" style="font-size:13px">Spread your ${nIdeas} ideas over your days — nearby places together, opening hours checked.</div>
       <div class="btns" style="margin:8px 0 0"><button class="btn small primary" data-act="autoplan">Make a plan</button></div></div></div>` : ''}
     <input class="search" type="search" placeholder="Search your places or find one on the map…" value="${esc(ctx.ui.q || '')}" data-input="q" autocomplete="off">
-    <div class="btns" style="margin:0 0 4px"><button class="btn small" data-act="new-place">✏️ Add manually</button><button class="btn small" data-act="ideas-tab" data-t="discover">🔭 Browse top sights</button></div>
+    <div class="btns" style="margin:0 0 4px"><button class="btn small" data-act="new-place">✏️ Add manually</button><button class="btn small" data-act="ideas-tab" data-t="discover">🔭 Browse top sights</button><button class="btn small" data-act="near">📍 Near me</button></div>
     ${q.length >= 2 ? `<div class="sectionlabel">In your trip · ${all.length}</div><div class="cards">${all.map(card).join('') || '<div class="empty small">None of your places match.</div>'}</div>` + foundHtml() : `
     <div class="sectionlabel">Not in the plan yet · ${ideas.length}</div>
     <div class="cards">${ideas.map(card).join('') || '<div class="empty">Nothing here yet — search above or browse 🔭 top sights.</div>'}</div>

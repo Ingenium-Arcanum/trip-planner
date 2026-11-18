@@ -25,7 +25,8 @@ export function createTileMap(el, handlers) {
   function draw() {
     if (!state) return;
     layer.clearLayers();
-    const { trip, rows, color, sel, showIdeas, extra } = state;
+    const { trip, rows, color, sel, showIdeas, extra, me } = state;
+    if (me) layer.addLayer(L.circleMarker([me.lat, me.lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#2a7de1', fillOpacity: 1, interactive: false }));
     const inDay = new Set(rows.map(r => r.place.id));
     const showLabels = map.getZoom() >= 15;
 

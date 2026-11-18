@@ -12,6 +12,7 @@ import { initPwa, pwa, promptInstall } from './pwa.js';
 import { suggestFixes, applyOps } from './rescue.js';
 import { optimiseDay, applyOrder } from './optimise.js';
 import { autoPlan } from './autoplan.js';
+import { nextIndex, roughly } from './nearby.js';
 import { loadTripPhotos, addPhotos, deletePhoto } from './photos.js';
 import { createMap, setMapPref } from './map/index.js';
 import { ctx, hooks, commit, save } from './state.js';
@@ -50,6 +51,7 @@ function shell() {
         <button data-act="zout" aria-label="Zoom out">－</button>
         <button data-act="fit" aria-label="Fit day">⤢</button>
         <button data-act="toggle-ideas" aria-label="Show ideas" id="ideaToggle">💡</button>
+        <button data-act="near" aria-label="Near me">◎</button>
       </div>
       <div id="mapextra"></div>
       <div class="maplegend" id="maplegend"></div>
@@ -111,7 +113,7 @@ async function ensureMap() {
 }
 function updateMap() {
   if (!ctx.map || !ctx.trip) return;
-  ctx.map.update({ trip: ctx.trip, rows: computeDay(ctx.trip, UI.day), color: dayColor(UI.day), sel: UI.sel, showIdeas: UI.showIdeas, extra: discoverPins() });
+  ctx.map.update({ trip: ctx.trip, rows: computeDay(ctx.trip, UI.day), color: dayColor(UI.day), sel: UI.sel, showIdeas: UI.showIdeas, extra: discoverPins(), me: UI.near?.here?.source === 'gps' ? UI.near.here : null });
 }
 /** Top sights not yet in the trip, shown on the map while Discover is open. */
 function discoverPins() {
@@ -421,6 +423,52 @@ function openRescue(di, live) {
   openSheet('rescue', args);
 }
 
+/* ---------- near me ---------- */
+/** Where you are according to the plan: the stop you're at / heading to today, else the city centre. */
+function planSpot() {
+  const t = ctx.trip, now = tripNow(), di = t.days.findIndex(d => d.date === now.date);
+  if (di >= 0) {
+    const rows = computeDay(t, di), r = rows.find(x => now.min < x.end) || rows[rows.length - 1];
+    if (r) return { lat: r.place.lat, lng: r.place.lng, label: r.place.name, source: 'plan' };
+  }
+  return t.center ? { lat: t.center[0], lng: t.center[1], label: 'the city centre', source: 'plan' } : null;
+}
+function openNear() {
+  const now = tripNow();
+  UI.near = { status: 'locating', km: UI.near?.km || 1, date: now.date, min: now.min, planSpot: planSpot(), sights: null };
+  openSheet('nearby');
+  locate();
+}
+function locate() {
+  const N = UI.near; if (!N) return;
+  const fallback = msg => {
+    N.err = msg; N.status = 'ready'; N.here = N.planSpot;
+    refreshSheet(); if (N.here) loadNearSights();
+  };
+  N.status = 'locating'; N.err = null; refreshSheet();
+  if (!navigator.geolocation) return fallback('Location isn’t available here — showing what’s near ' + (N.planSpot?.label || 'your plan') + '.');
+  try {
+    navigator.geolocation.getCurrentPosition(pos => {
+      if (UI.near !== N) return;
+      N.here = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy, source: 'gps' };
+      N.status = 'ready'; refreshSheet(); updateMap(); loadNearSights();
+    }, err => {
+      if (UI.near !== N) return;
+      fallback(err.code === 1
+        ? 'Location is off for this site. Allow it in Chrome (tap 🔒 next to the address → Permissions), or use your plan: showing what’s near ' + (N.planSpot?.label || 'it') + '.'
+        : 'Couldn’t find your location — showing what’s near ' + (N.planSpot?.label || 'your plan') + '.');
+    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+  } catch (e) { fallback('Location isn’t available here — showing what’s near ' + (N.planSpot?.label || 'your plan') + '.'); }
+}
+async function loadNearSights() {
+  const N = UI.near; if (!N?.here) return;
+  N.loadingSights = true; N.sightsErr = null; refreshSheet();
+  try { N.sights = await net.topSights(roughly(N.here), Math.max(1, N.km), { minLinks: 3 }); }
+  catch (e) { N.sights = []; N.sightsErr = 'Sights nearby ' + offlineHint(); }
+  if (UI.near !== N) return;
+  N.loadingSights = false; refreshSheet();
+}
+
 const stopOf = id => findStop(ctx.trip, id);
 const rowOf = id => { const f = stopOf(id); return f && computeDay(ctx.trip, f.di).find(x => x.st.id === id); };
 function confirmTap(el, label) { if (el.dataset.sure === '1') return true; el.dataset.sure = '1'; el.textContent = label; return false; }
@@ -600,6 +648,22 @@ const A = {
     commit(); toast('Undone');
   },
   'ap-show': () => { const di = UI.apDone?.firstDay ?? 0; closeSheet(); UI.view = 'plan'; UI.day = di; renderAll(); fitDay(); },
+  near: () => openNear(),
+  'near-locate': () => locate(),
+  'near-plan': () => { const N = UI.near; if (!N?.planSpot) return; N.here = N.planSpot; N.err = null; N.status = 'ready'; refreshSheet(); loadNearSights(); },
+  'near-km': el => { const N = UI.near; if (!N) return; N.km = +el.dataset.km; refreshSheet(); loadNearSights(); },
+  'near-add': el => {
+    const N = UI.near, t = ctx.trip; if (!N) return;
+    let p;
+    if (el.dataset.kind === 'idea') p = t.places[el.dataset.id];
+    else { const s = N.sights?.find(x => x.wd === el.dataset.wd); if (s) p = placeFromSight(s); }
+    if (!p) return;
+    const today = t.days.findIndex(d => d.date === N.date);
+    const di = today >= 0 ? today : UI.day;
+    addStop(di, p.id, today >= 0 ? nextIndex(t, di, N.min) : 'end');
+    commit();
+    toast(today >= 0 ? `${p.name} is your next stop` : `${p.name} added to ${dayShort(t.days[di])}`);
+  },
   // share links
   share: () => openShare(),
   'share-copy': () => UI.shareLink?.url && copyText(UI.shareLink.url, $('#shareLink')),

@@ -54,14 +54,17 @@ export async function findCity(q) {
   return { name: p.name, lat, lng, km, country: p.country, label: [p.name, p.country].filter(Boolean).join(', ') };
 }
 
-/** Famous places within `km` of a point, best first. Cached for a week per area. */
-export async function topSights(center, km = 8) {
+/**
+ * Famous places within `km` of a point, best first. Cached for a week per area.
+ * `minLinks` (how many Wikipedias must write about it) can be lowered for small "near me" searches.
+ */
+export async function topSights(center, km = 8, { minLinks } = {}) {
   const lat = +center.lat, lng = +center.lng;
-  const key = `tp.cache.sights${SIGHTS_V}.${lat.toFixed(3)},${lng.toFixed(3)},${km}`;
+  const key = `tp.cache.sights${SIGHTS_V}.${lat.toFixed(3)},${lng.toFixed(3)},${km}${minLinks ? ',' + minLinks : ''}`;
   if (memo.has(key)) return memo.get(key);
   const cached = ls.get(key);
   if (cached && Date.now() - cached.t < 7 * 864e5 && cached.v?.length) { memo.set(key, cached.v); return cached.v; }
-  const url = 'https://query.wikidata.org/sparql?format=json&query=' + encodeURIComponent(sightsQuery(lat, lng, km));
+  const url = 'https://query.wikidata.org/sparql?format=json&query=' + encodeURIComponent(sightsQuery(lat, lng, km, 'en', 300, minLinks));
   const j = await getJSON(url, { timeout: 25000, init: { headers: { Accept: 'application/sparql-results+json' } } });
   const v = parseSights(j);
   memo.set(key, v);

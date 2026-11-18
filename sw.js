@@ -35,6 +35,7 @@ const PRECACHE = [
   'js/discover.js',
   'js/geo.js',
   'js/links.js',
+  'js/nearby.js',
   'js/net.js',
   'js/photos.js',
   'js/pwa.js',

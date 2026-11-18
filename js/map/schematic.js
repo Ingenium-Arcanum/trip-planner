@@ -29,7 +29,7 @@ export function createSchematicMap(el, handlers) {
     measure();
     const css = getComputedStyle(document.documentElement);
     const c = n => css.getPropertyValue(n).trim();
-    const { trip, rows, color, sel, showIdeas, extra } = state;
+    const { trip, rows, color, sel, showIdeas, extra, me } = state;
     const B = trip.basemap || {};
     const LAB = [], OBST = [];
     const tw = (t, fs) => t.length * fs * 0.56;
@@ -92,6 +92,7 @@ export function createSchematicMap(el, handlers) {
         { x: x - rad - 4 - w, y: y - 9, w, h: 18, svg: mk(x - rad - 5, 'end') }] });
     });
     pins += dayPins.filter(d => !d.isSel).map(d => d.svg).join('') + dayPins.filter(d => d.isSel).map(d => d.svg).join('');
+    if (me) { const [mx, my] = S2(P(me.lat, me.lng)); pins += `<circle cx="${mx}" cy="${my}" r="8" fill="#2a7de1" stroke="#fff" stroke-width="3"/>`; }
 
     // Greedy label placement: important labels first, skip any that would overlap.
     const placed = OBST.slice();

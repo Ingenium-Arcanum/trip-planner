@@ -67,7 +67,8 @@ export function renderNow() {
       const next = rows.slice(k + 1, k + 5);
       if (next.length) html += `<div class="sectionlabel">Coming up</div><div class="upnext" style="--dc:${color}">${next.map(r => anyRow(r, rows.indexOf(r), { nohandle: 1, compact: 1 })).join('')}</div>`;
       const last = rows[rows.length - 1];
-      html += `<p class="muted" style="font-size:13px;margin-top:12px">Day ends ${fmt(last.end)} at ${esc(last.place.name)}.</p>`;
+      html += `<p class="muted" style="font-size:13px;margin-top:12px">Day ends ${fmt(last.end)} at ${esc(last.place.name)}.</p>
+        <button class="addbtn" data-act="near">📍 Got time? What’s near me</button>`;
     }
   }
   const pv = ctx.ui.preview;
