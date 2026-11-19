@@ -108,7 +108,8 @@ async function networkFirst(e, req, key) {
   const slow = new Promise(r => setTimeout(() => r(null), 4000));
   try {
     const res = await Promise.race([net, slow]);
-    if (res) return res;
+    // A server hiccup (e.g. a 503 from the host) must not break the app: use the saved copy instead.
+    if (res && res.ok) return res;
   } catch (err) { /* offline */ }
   const hit = await cache.match(key, { ignoreSearch: true });
   if (hit) return hit;
