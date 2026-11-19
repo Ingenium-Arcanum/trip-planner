@@ -106,3 +106,15 @@ test('applyOps: shorten, taxi, remove, move after, move to another day', () => {
   assert.deepEqual(t.days[1].stops.map(s => s.id), ['c']);
   assert.ok(t.places.cafe, 'skipped place stays in the trip');
 });
+
+test('estimated walks: cuts leave a little room; with known travel times they cut exactly', () => {
+  const est = suggestFixes(trip(), 0).options.find(o => o.kind === 'spread' || o.kind === 'shorten');
+  const after = computeDay(applyOps(clone(trip()), est.ops), 0).find(r => r.st.id === 't');
+  assert.ok(after.wait >= 5, `room to spare when walks are estimates (wait ${after.wait})`);
+  assert.equal(est.tight, false);
+
+  const known = trip();
+  computeDay(known, 0).forEach(r => { if (r.tr) { r.st.min = r.tr.min; r.st.mode = r.tr.mode; } }); // as if typed in
+  const exact = suggestFixes(known, 0).options.find(o => o.kind === est.kind);
+  assert.match(exact.label, /15 min/, exact.label);
+});

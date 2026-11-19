@@ -649,7 +649,7 @@ const A = {
     UI.rescueDone = { msg: o.label + (o.full ? ' — you’re on time now.' : '.'), undo: before };
     UI.sel = null;
     commit();
-    toast(o.full ? 'Fixed — you’re on time' : 'That helps');
+    toast(o.full ? (o.tight ? 'Fixed — but it’s tight, the walk is an estimate' : 'Fixed — you’re on time') : 'That helps');
   },
   'rescue-undo': () => {
     if (!UI.rescueDone) return;

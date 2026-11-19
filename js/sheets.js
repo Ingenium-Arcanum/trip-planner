@@ -405,7 +405,7 @@ function fixDetail(o, tg) {
     return `${t.places[f.st.place]?.name}: ${f.st.dur} → ${op.dur} min`;
   }).filter(Boolean);
   if (o.kind === 'spread') bits.push(durs.join(' · '));
-  bits.push(o.full ? `On time: you get there at ${fmt(o.after.arr)}` : `Helps, but still ${o.after.late} min late`);
+  bits.push(o.full ? (o.tight ? `Just on time (${fmt(o.after.arr)}) — the walk is an estimate, so it may be tight` : `On time: you get there at ${fmt(o.after.arr)}`) : `Helps, but still ${o.after.late} min late`);
   return bits.join(' — ');
 }
 
@@ -473,7 +473,7 @@ function optimise({ di }) {
       return `<li><span>${cat(p).e} ${esc(p.name)}</span>${was !== i + 1 ? `<small>was ${was}</small>` : ''}${s.fixed ? `<small>📌 ${esc(s.fixed)}</small>` : ''}${s.done ? '<small>✓ visited</small>' : ''}</li>`;
     }).join('')}</ol>
     <div class="btns" style="margin-top:14px"><button class="btn primary" data-act="optimise-apply">Use this order</button><button class="btn" data-act="close-sheet">Keep mine</button></div>
-    <p class="muted" style="font-size:12px;margin-top:10px">Travel times are estimates. Visited stops, bookings and opening hours are taken into account; a travel time you typed in yourself is reset when the stop before it changes.</p>
+    <p class="muted" style="font-size:12px;margin-top:10px">Walks use real routes once they’ve loaded; other travel times are estimates. Visited stops, bookings and opening hours are taken into account; a travel time you typed in yourself is reset when the stop before it changes.</p>
   </div>`;
   return html;
 }
@@ -505,7 +505,7 @@ function autoplan() {
     html += `<p class="muted" style="font-size:13px;margin-top:12px"><b>Stays in your ideas:</b> ${res.skipped.map(s => `${esc(t.places[s.place]?.name || '')} (${why[s.reason]})`).join(', ')}.</p>`;
   }
   html += `<div class="btns" style="margin-top:14px">${res?.added.length ? '<button class="btn primary" data-act="ap-apply">Use this plan</button>' : ''}<button class="btn" data-act="close-sheet">Cancel</button></div>
-    <p class="muted" style="font-size:12px;margin-top:10px">Visit lengths use typical times per type of place — change them in the plan afterwards. Travel times are estimates.</p>
+    <p class="muted" style="font-size:12px;margin-top:10px">Visit lengths use typical times per type of place — change them in the plan afterwards. Travel times are estimates until the walking routes have loaded.</p>
   </div>`;
   return html;
 }

@@ -51,7 +51,7 @@ export const lastTripId = () => ls.get(STORAGE.last);
 
 export function newTrip({ title, destination, start, days = 2, tz }) {
   const t = normalize({
-    title: title || (destination ? destination + ' trip' : 'New trip'),
+    title: title || (destination ? destination.split(',')[0].trim() + ' trip' : 'New trip'),
     destination, tz,
     days: Array.from({ length: Math.max(1, days) }, (_, i) => ({ date: isoAddDays(start, i), start: '09:30', stops: [] })),
     places: {}

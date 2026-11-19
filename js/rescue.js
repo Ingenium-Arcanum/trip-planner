@@ -35,6 +35,21 @@ function totals(trip) {
   return { late, warns };
 }
 
+/**
+ * How much room a booking needs before it counts as safely on time: walks without a real route
+ * are straight-line estimates and can be ~20% longer once the route is known.
+ */
+function slack(rows, target) {
+  let m = 0;
+  // walk back from the booking; a place where you'd wait absorbs any delay before it
+  for (let k = rows.indexOf(target); k > 0; k--) {
+    const r = rows[k];
+    if (r !== target && r.wait > 0) break;
+    if (r.tr && r.tr.mode === 'walk' && !r.tr.routed && !r.tr.manual) m += r.tr.min * 0.2;
+  }
+  return Math.round(m);
+}
+
 /** The first late row of day `di` at or after row index `from`, or null. */
 export function firstProblem(trip, di, from = 0) {
   const rows = computeDay(trip, di);
@@ -68,24 +83,29 @@ export function suggestFixes(trip, di, { from = 0, keep = {}, minDay = 0, max = 
     const all = totals(t);
     if (all.late - now > base.late - late) return;             // makes something else late
     const newWarn = all.warns > base.warns;                    // e.g. now arrives after closing time
-    options.push({ kind, label, ops, full: now === 0, after: { late: now, arr: tr?.arr }, newWarn,
-      cost: cost + (now > 0 ? 200 + now * 5 : 0) + (newWarn ? 40 : 0) });
+    const tight = now === 0 && tr.wait < slack(rs, tr);        // on time only if the estimated walks are right
+    options.push({ kind, label, ops, full: now === 0, tight, after: { late: now, arr: tr?.arr }, newWarn,
+      cost: cost + (now > 0 ? 200 + now * 5 : 0) + (newWarn ? 40 : 0) + (tight ? 25 : 0) });
   };
 
   // Stops you could change: after `from`, before the problem, not booked, not must-do, not done.
   const flex = rows.slice(from, ti).filter(r => !r.st.virtual && !r.st.fixed && !r.st.must && !r.st.done && (r.st.dur || 0) > 0);
   const minDur = r => Math.max(MIN_MINUTES, up5((r.st.dur || 0) * MIN_SHARE), keep[r.st.id] || 0);
-  const cut = up5(late);
+  // Cut a little extra when the walks are estimates (they can turn out longer), if there's room for it.
+  const exact = up5(late), padded = up5(late + slack(rows, target));
+  const cutCost = c => exact + (c - exact) * 0.3;              // the extra is insurance, not a real loss
 
   // 1. Spend less time at one place (prefer the one where the cut hurts least, relatively).
-  flex.filter(r => r.st.dur - cut >= minDur(r))
-    .sort((a, b) => cut / b.st.dur - cut / a.st.dur)
+  flex.map(r => ({ r, cut: [padded, exact].find(c => r.st.dur - c >= minDur(r)) }))
+    .filter(x => x.cut)
+    .sort((a, b) => a.cut / a.r.st.dur - b.cut / b.r.st.dur)
     .slice(0, 2)
-    .forEach(r => consider('shorten', `Spend ${cut} min less at ${name(r)}`, [{ op: 'dur', stop: r.st.id, dur: r.st.dur - cut }], cut * (1 + cut / r.st.dur)));
+    .forEach(({ r, cut }) => consider('shorten', `Spend ${cut} min less at ${name(r)}`, [{ op: 'dur', stop: r.st.id, dur: r.st.dur - cut }], cutCost(cut) * (1 + exact / r.st.dur)));
 
   // 2. Spread the cut over several visits.
   const room = flex.map(r => ({ r, can: Math.max(0, r.st.dur - minDur(r)) })).filter(x => x.can >= 5);
   const roomTotal = room.reduce((s, x) => s + x.can, 0);
+  const cut = roomTotal >= padded ? padded : exact;
   if (room.length >= 2 && roomTotal >= late) {
     let left = cut;
     const ops = room.map(({ r, can }, i) => {
@@ -93,7 +113,7 @@ export function suggestFixes(trip, di, { from = 0, keep = {}, minDay = 0, max = 
       left -= take;
       return { op: 'dur', stop: r.st.id, dur: r.st.dur - take };
     }).filter((o, i) => o.dur !== room[i].r.st.dur);
-    if (ops.length >= 2) consider('spread', `Shorten ${ops.length} visits a little (${cut} min in total)`, ops, cut * 0.9);
+    if (ops.length >= 2) consider('spread', `Shorten ${ops.length} visits a little (${cut} min in total)`, ops, cutCost(cut) * 0.9);
   }
 
   // 3. Take a taxi for a hop (one hop if that's enough, else every hop that saves time).
