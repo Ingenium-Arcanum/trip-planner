@@ -14,6 +14,7 @@ export const routingOn = () => ls.get('tp.routing') !== 'off';
 import { suggestFixes } from './rescue.js';
 import { PACES, unplannedIdeas } from './autoplan.js';
 import { nearbyCandidates, distLabel } from './nearby.js';
+import { sunsetFor } from './sun.js';
 import { mapPref } from './map/index.js';
 import { ctx } from './state.js';
 import { coverBlock, thumb } from './views/components.js';
@@ -196,10 +197,12 @@ function picker({ di, at }) {
 
 function day(di) {
   const d = ctx.trip.days[di]; if (!d) return '';
+  const auto = sunsetFor(ctx.trip, { date: d.date });
   return `<div class="sbody" style="padding-top:22px"><h2>${esc(dayLong(d))}</h2>
     <div class="grid2"><div class="field"><label>Day starts at</label><input type="time" value="${esc(d.start)}" data-input="day-start" data-di="${di}"></div>
     <div class="field"><label>Date</label><input type="date" value="${esc(d.date)}" data-input="day-date" data-di="${di}"></div></div>
-    <div class="field"><label>Sunset (optional)</label><input type="time" value="${esc(d.sunset || '')}" data-input="day-sunset" data-di="${di}"></div>
+    <div class="field"><label>Sunset</label><input type="time" value="${esc(d.sunset || '')}" data-input="day-sunset" data-di="${di}">
+      <p class="muted" style="font-size:12px;margin:4px 0 0">${auto ? `Worked out from the map: ${esc(auto.time)}. Leave empty to keep it automatic.` : d.sunset ? 'Clear it to work it out from the map.' : 'Shown once the trip has a place on the map.'}</p></div>
     <div class="btns"><button class="btn primary" data-act="close-sheet">Done</button><button class="btn danger" data-act="remove-day" data-di="${di}">Delete this day</button></div></div>`;
 }
 
@@ -250,7 +253,8 @@ function backup() {
 
 function paste() {
   return `<div class="sbody" style="padding-top:22px"><h2>Paste a trip</h2>
-    <textarea id="importText" placeholder="Paste a copied trip here…" style="min-height:140px;font-size:12px"></textarea>
+    <p class="muted" style="font-size:14px">Paste a trip link someone sent you (the whole message is fine) or a copied backup.</p>
+    <textarea id="importText" placeholder="https://…#t=…  or a copied trip" style="min-height:140px;font-size:12px"></textarea>
     <div class="btns" style="margin-top:8px"><button class="btn primary" data-act="import-text">Load trip</button></div></div>`;
 }
 

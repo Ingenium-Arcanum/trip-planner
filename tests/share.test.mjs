@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { encodeTrip, decodeTrip, slimTrip, shareUrl, codeFromHash } from '../js/share.js';
+import { encodeTrip, decodeTrip, slimTrip, shareUrl, codeFromHash, codeFromText } from '../js/share.js';
 import { normalize } from '../js/store.js';
 
 /** A made-up trip with enough text to make compression matter. */
@@ -60,4 +60,16 @@ test('shareUrl / codeFromHash', () => {
   assert.equal(codeFromHash('#t=1a-b_C'), '1a-b_C');
   assert.equal(codeFromHash('#other'), null);
   assert.equal(codeFromHash(''), null);
+});
+
+test('codeFromText finds the code in a pasted message, link or bare code', async () => {
+  const code = await encodeTrip(sample());
+  const url = shareUrl('https://x.github.io/app/', code);
+  assert.equal(codeFromText(url), code);
+  assert.equal(codeFromText('Our trip plan: Sample weekend ' + url + ' 👍'), code);
+  assert.equal(codeFromText('  ' + code + '  '), code);
+  assert.equal((await decodeTrip(codeFromText('see ' + url))).title, 'Sample weekend');
+  assert.equal(codeFromText(JSON.stringify(sample())), null, 'a pasted backup is not a link');
+  assert.equal(codeFromText('hello'), null);
+  assert.equal(codeFromText(''), null);
 });

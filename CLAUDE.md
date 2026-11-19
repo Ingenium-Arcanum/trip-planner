@@ -78,6 +78,8 @@ Walking routes: `js/routing.js` (pure, tested) lists days with walkable hops (�
 asks routing.openstreetmap.de once per day (max 1 req/s, usage policy), stores legs in `trip.routes` keyed by `routeKey`
 (geo.js), prunes unused ones, saves without touching `editedAt`. Auto mode walks when the routed walk ≤ `WALK_MAX_MIN`.
 Users can switch it off (Trip settings → Walking times; `tp.routing` in localStorage).
+Paste a trip (`importText` in app.js) accepts a share link, a whole chat message containing one, or a backup (JSON);
+`share.codeFromText` finds the code. Needed for iPhone home-screen apps, which can't receive links.
 Trip dates: `store.setTripDates(trip, start, end)` (pure, tested) shifts every day and stay by the same number of days; a later end adds empty days, an earlier end drops only empty trailing days (refuses otherwise, trip untouched). Trip settings → First / Last day.
 Timeline rule: `arrival = prev.end + travel`, but not before `fixed` (wait); after `fixed` → `late` warning.
 `hours` uses JS weekdays (0 = Sunday); a missing weekday key means closed; for ticketed sights store last-entry times.
@@ -100,7 +102,8 @@ Timeline rule: `arrival = prev.end + travel`, but not before `fixed` (wait); aft
 4. **Sync between devices**: share links are done (`js/share.js`: trip → deflate → base64url in `#t=…`,
    never sent to a server; opening offers add / update / keep both, using `editedAt` vs `sharedAt`).
    Next step would be live sync via a tiny backend.
-5. **Sunrise/sunset** computed from `center` + date instead of the manual `sunset` field.
+5. ✅ **Sunset** computed from `center` + date + `tz` (`js/sun.js`, pure, tested); a typed `day.sunset` overrides it.
+   Plan view shows the time, a "dark from here" line and 🌙 on park/nature stops that run into the dark.
 6. ✅ **Real walking routes** (FOSSGIS OSRM foot). Transit routing still open (no free source).
 7. Weather per day, budget/costs per stop, packing list, notes per day.
 8. Playwright UI tests (drag, add place, Now preview).

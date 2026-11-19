@@ -66,5 +66,16 @@ export function codeFromHash(hash) {
   return m ? m[1] : null;
 }
 
+/**
+ * The code in pasted text: a whole message with the link in it ("Our trip plan: … https://…#t=1abc"),
+ * the link alone, or just the code. Null when there is none (e.g. a pasted backup, which is JSON).
+ */
+export function codeFromText(text) {
+  const s = String(text || '').trim();
+  const m = s.match(/#t=([A-Za-z0-9_-]{8,})/);
+  if (m) return m[1];
+  return /^[01][A-Za-z0-9_-]{20,}$/.test(s) ? s : null;
+}
+
 /** Links longer than this can get cut off by some chat apps. */
 export const LONG_LINK = 60000;

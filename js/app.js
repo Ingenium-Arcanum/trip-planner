@@ -7,7 +7,7 @@ import { computeDay, findStop, bestIndex, defaultDur, isEndpoint, scheduledIds }
 import { findExisting, sightToPlace, parseOpeningHours, prettyHours, parseTypedHours } from './discover.js';
 import * as net from './net.js';
 import * as store from './store.js';
-import { encodeTrip, decodeTrip, shareUrl, codeFromHash } from './share.js';
+import { encodeTrip, decodeTrip, shareUrl, codeFromHash, codeFromText } from './share.js';
 import { initPwa, pwa, promptInstall } from './pwa.js';
 import { suggestFixes, applyOps } from './rescue.js';
 import { optimiseDay, applyOrder } from './optimise.js';
@@ -507,9 +507,16 @@ async function loadTemplateTrip(path) {
   try { const t = await store.loadTemplate(path); await openTrip(t); }
   catch (e) { toast('Couldn’t load that plan'); }
 }
-function importText(text) {
+/** Pasted text: a share link (or a message containing one) opens the "shared trip" sheet; anything else is read as a backup. */
+async function importText(text) {
+  const code = codeFromText(text);
+  if (code) {
+    try { UI.incoming = await decodeTrip(code); openSheet('incoming'); }
+    catch (e) { toast('This trip link is broken or incomplete — copy the whole link, or ask for a new one'); }
+    return;
+  }
   try { const t = store.importTrip(text); closeSheet(); openTrip(t); toast('Trip loaded'); }
-  catch (e) { toast('That doesn’t look like a trip'); }
+  catch (e) { toast('That doesn’t look like a trip or a trip link'); }
 }
 
 /* ================= actions ================= */

@@ -3,6 +3,7 @@
 import { esc, fmt, toMin, dayLong, dayName } from '../util.js';
 import { dayColor, MODES } from '../config.js';
 import { computeDay } from '../schedule.js';
+import { sunsetFor, darkNote } from '../sun.js';
 import { routeUrl } from '../links.js';
 import { ctx } from '../state.js';
 import { dayTabs, anyRow } from './components.js';
@@ -22,7 +23,7 @@ export function renderPlan() {
   const t = ctx.trip, di = ctx.ui.day, day = t.days[di];
   if (!day) return dayTabs() + `<div class="pad empty">No days yet — tap ＋ day.</div>`;
   const rows = computeDay(t, di);
-  const sunset = toMin(day.sunset);
+  const sun = sunsetFor(t, day), sunset = toMin(sun?.time);
   const setUp = (t.stays || []).length || t.arrive?.place || t.depart?.place;
   const realStops = rows.filter(r => !r.st.virtual).length;
   const late = rows.find(r => r.late > 0);
@@ -37,13 +38,14 @@ export function renderPlan() {
       <button class="chip" data-act="stays">🛏️ Hotel &amp; travel</button>
       ${realStops >= 3 ? '<button class="chip" data-act="optimise">✨ Best order</button>' : ''}
       ${rows.length ? `<span class="chip">🏁 End ${fmt(rows[rows.length - 1].end)}</span>` : ''}
-      ${sunset ? `<span class="chip">🌅 Sunset ≈${esc(day.sunset)}</span>` : ''}
+      ${sunset != null ? `<button class="chip" data-act="edit-day">🌅 Sunset ${esc(sun.time)}</button>` : ''}
       ${rows.length > 1 ? `<a class="chip" target="_blank" rel="noopener" href="${routeUrl(t, rows)}">🧭 Route in Google Maps</a>` : ''}
     </div><div class="tl" id="tl">`;
   let sunsetShown = false;
   rows.forEach((r, k) => {
     if (k > 0) html += gapHtml(r);
-    if (sunset && !sunsetShown && r.arr >= sunset) { sunsetShown = true; html += `<div class="sunset">🌅 sunset around ${esc(day.sunset)}</div>`; }
+    if (sunset != null && !sunsetShown && r.arr >= sunset) { sunsetShown = true; html += `<div class="sunset">🌅 sunset ${esc(sun.time)} — dark from here</div>`; }
+    if (!r.st.virtual) r.dark = darkNote(r.place.cat, r.arr, r.end, sunset);
     html += anyRow(r, k);
   });
   html += `</div>${realStops ? '' : `<div class="empty">Nothing planned yet. Tap ＋ below, browse <button class="linkbtn" data-act="go-discover">🔭 top sights</button>${Object.keys(t.places).length >= 2 ? ', or let the app <button class="linkbtn" data-act="autoplan">🪄 plan it for you</button>' : ''}.</div>`}

@@ -42,7 +42,7 @@ const PRECACHE = [
   'js/optimise.js',
   'js/rescue.js',
   'js/routing.js',
-  'js/schedule.js',
+  'js/schedule.js', 'js/sun.js',
   'js/share.js',
   'js/sheets.js',
   'js/state.js',

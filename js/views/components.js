@@ -34,6 +34,7 @@ export function stopCard(r, k, opts = {}) {
   const warns = [];
   if (r.warn) warns.push('⚠ ' + r.warn);
   if (r.late) warns.push(`⚠ ${r.late} min late for ${st.fixed}`);
+  if (r.dark) warns.push('🌙 ' + r.dark);
   const nph = photosOf(ctx.trip.id, p.id).length;
   return `<div class="stop ${ctx.ui.sel === st.id ? 'sel' : ''} ${st.done ? 'done' : ''}" data-act="open-stop" data-id="${st.id}">
     <div class="badge">${st.done ? '✓' : r.n ?? k + 1}</div>
