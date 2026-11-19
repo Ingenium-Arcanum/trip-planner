@@ -187,3 +187,18 @@ test('shortName and dedupeFound', () => {
   const a = { name: 'Central', lat: 48.1402, lng: 11.5600 };
   assert.equal(dedupeFound([a, { ...a, lat: 48.1404 }, { name: 'Central', lat: 48.20, lng: 11.56 }]).length, 2);
 });
+
+test('tzForCountry: single-zone countries, island zones, and multi-zone countries left alone', async () => {
+  const { tzForCountry } = await import('../js/discover.js');
+  assert.equal(tzForCountry('PT', -9.14), 'Europe/Lisbon');
+  assert.equal(tzForCountry('pt', -25.67), 'Atlantic/Azores');
+  assert.equal(tzForCountry('PT', -16.9), 'Atlantic/Madeira');
+  assert.equal(tzForCountry('ES', -3.7), 'Europe/Madrid');
+  assert.equal(tzForCountry('ES', -15.4), 'Atlantic/Canary');
+  assert.equal(tzForCountry('GB'), 'Europe/London');
+  assert.equal(tzForCountry('US', -74), null);
+  assert.equal(tzForCountry('AU', 151), null);
+  assert.equal(tzForCountry(undefined), null);
+  // every zone in the table is one this JS engine knows
+  for (const cc of ['IE', 'NL', 'IS', 'JP', 'AR', 'UA', 'IM']) assert.doesNotThrow(() => new Intl.DateTimeFormat('en', { timeZone: tzForCountry(cc) }), cc);
+});

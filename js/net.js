@@ -51,7 +51,7 @@ export async function findCity(q) {
     const dx = (e - w) * 111 * Math.cos(lat * Math.PI / 180), dy = (n - s) * 111;
     km = Math.max(2, Math.min(15, Math.round(Math.max(dx, dy) / 2)));
   }
-  return { name: p.name, lat, lng, km, country: p.country, label: [p.name, p.country].filter(Boolean).join(', ') };
+  return { name: p.name, lat, lng, km, country: p.country, countrycode: p.countrycode, label: [p.name, p.country].filter(Boolean).join(', ') };
 }
 
 /**

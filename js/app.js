@@ -4,7 +4,7 @@ import { $, esc, uid, fmt, toMin, toast, dayLong, dayShort, isoAddDays, ls } fro
 import { dayColor, cat } from './config.js';
 import { parseCoords } from './geo.js';
 import { computeDay, findStop, bestIndex, defaultDur, isEndpoint, scheduledIds } from './schedule.js';
-import { findExisting, sightToPlace, parseOpeningHours, prettyHours, parseTypedHours } from './discover.js';
+import { findExisting, sightToPlace, parseOpeningHours, prettyHours, parseTypedHours, tzForCountry } from './discover.js';
 import * as net from './net.js';
 import * as store from './store.js';
 import { encodeTrip, decodeTrip, shareUrl, codeFromHash, codeFromText } from './share.js';
@@ -172,6 +172,7 @@ export async function openTrip(t) {
   renderAll();
   await ensureMap(); updateMap(); renderMapChrome(); fitDay();
   refreshHours();
+  checkTripTz(t);
 }
 export function goHome() { closeSheet(); ctx.trip = null; renderAll(); }
 
@@ -329,8 +330,33 @@ async function locateTrip(t) {
   t.center = [c.lat, c.lng];
   t.discKm = c.km <= 3 ? 3 : c.km <= 10 ? 8 : 20;
   if (!t.mapsSuffix) t.mapsSuffix = ', ' + c.label;
+  applyCityTz(t, c);
   save();
   return true;
+}
+const deviceTz = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return null; } };
+/**
+ * New trips get this phone's time zone. Once we know the destination's country, switch to its zone —
+ * unless the trip's zone was chosen by hand (it differs from the phone's, or was typed in settings).
+ */
+function applyCityTz(t, c) {
+  if (t.tzChecked || !c) return;
+  t.tzChecked = true;
+  const tz = tzForCountry(c.countrycode, c.lng);
+  if (!tz || tz === t.tz || t.tz !== deviceTz()) return;
+  try { new Intl.DateTimeFormat('en', { timeZone: tz }); } catch (e) { return; }
+  t.tz = tz;
+  toast(`Times now follow ${tz.split('/').pop().replace(/_/g, ' ')} time (${tz})`);
+}
+/** Trips made before the time-zone check: look the destination up once (in the background). */
+async function checkTripTz(t) {
+  if (t.tzChecked || !t.destination || !pwa.online) return;
+  const c = await net.findCity(t.destination).catch(() => null);
+  if (!c || ctx.trip !== t || t.tzChecked) return;
+  const before = t.tz;
+  applyCityTz(t, c);
+  save();
+  if (t.tz !== before) renderAll();
 }
 async function loadDiscover(force) {
   const t = ctx.trip, D = UI.disc;
@@ -807,7 +833,7 @@ const INPUTS = {
   'trip-end': el => setDates(ctx.trip.days[0].date, el.value),
   'trip-title': el => { ctx.trip.title = el.value || 'My trip'; commit(); },
   'trip-dest': el => { ctx.trip.destination = el.value; commit(); },
-  'trip-tz': el => { try { new Intl.DateTimeFormat('en', { timeZone: el.value }); ctx.trip.tz = el.value; commit(); } catch (e) { toast('Unknown time zone'); } },
+  'trip-tz': el => { try { new Intl.DateTimeFormat('en', { timeZone: el.value }); ctx.trip.tz = el.value; ctx.trip.tzChecked = true; commit(); } catch (e) { toast('Unknown time zone'); } },
   'trip-suffix': el => { ctx.trip.mapsSuffix = el.value; commit(); },
   routing: el => { ls.set('tp.routing', el.value); routePauseUntil = 0; if (el.value === 'on') queueRoutes(); toast(el.value === 'on' ? 'Real walking routes on' : 'Walking times are estimates now'); },
   'map-mode': async el => { setMapPref(el.value); ctx.map?.destroy(); ctx.map = null; await ensureMap(); renderAll(); fitDay(); refreshSheet(); }

@@ -355,3 +355,31 @@ export function dedupeFound(list) {
   }
   return out;
 }
+
+/* ---------- time zone of a destination ---------- */
+/** Countries with one time zone (or one for practically every visitor), by ISO code. */
+const COUNTRY_TZ = {
+  IE: 'Europe/Dublin', GB: 'Europe/London', IM: 'Europe/Isle_of_Man', JE: 'Europe/Jersey', GG: 'Europe/Guernsey', IS: 'Atlantic/Reykjavik',
+  NL: 'Europe/Amsterdam', BE: 'Europe/Brussels', LU: 'Europe/Luxembourg', FR: 'Europe/Paris', DE: 'Europe/Berlin', AT: 'Europe/Vienna',
+  CH: 'Europe/Zurich', LI: 'Europe/Vaduz', IT: 'Europe/Rome', SM: 'Europe/San_Marino', VA: 'Europe/Vatican', MT: 'Europe/Malta', MC: 'Europe/Monaco',
+  AD: 'Europe/Andorra', DK: 'Europe/Copenhagen', NO: 'Europe/Oslo', SE: 'Europe/Stockholm', FI: 'Europe/Helsinki', EE: 'Europe/Tallinn',
+  LV: 'Europe/Riga', LT: 'Europe/Vilnius', PL: 'Europe/Warsaw', CZ: 'Europe/Prague', SK: 'Europe/Bratislava', HU: 'Europe/Budapest',
+  SI: 'Europe/Ljubljana', HR: 'Europe/Zagreb', BA: 'Europe/Sarajevo', RS: 'Europe/Belgrade', ME: 'Europe/Podgorica', MK: 'Europe/Skopje',
+  AL: 'Europe/Tirane', GR: 'Europe/Athens', BG: 'Europe/Sofia', RO: 'Europe/Bucharest', MD: 'Europe/Chisinau', UA: 'Europe/Kyiv',
+  CY: 'Asia/Nicosia', TR: 'Europe/Istanbul', GE: 'Asia/Tbilisi', AM: 'Asia/Yerevan', MA: 'Africa/Casablanca', TN: 'Africa/Tunis',
+  EG: 'Africa/Cairo', IL: 'Asia/Jerusalem', JO: 'Asia/Amman', AE: 'Asia/Dubai', QA: 'Asia/Qatar', JP: 'Asia/Tokyo', KR: 'Asia/Seoul',
+  CN: 'Asia/Shanghai', HK: 'Asia/Hong_Kong', TW: 'Asia/Taipei', TH: 'Asia/Bangkok', VN: 'Asia/Ho_Chi_Minh', SG: 'Asia/Singapore',
+  MY: 'Asia/Kuala_Lumpur', PH: 'Asia/Manila', IN: 'Asia/Kolkata', LK: 'Asia/Colombo', NP: 'Asia/Kathmandu', ZA: 'Africa/Johannesburg',
+  KE: 'Africa/Nairobi', NZ: 'Pacific/Auckland', CU: 'America/Havana', CR: 'America/Costa_Rica', PE: 'America/Lima', CO: 'America/Bogota',
+  AR: 'America/Argentina/Buenos_Aires', UY: 'America/Montevideo'
+};
+/**
+ * Time zone for a destination from its country code (and longitude, for Spain's and Portugal's
+ * islands). null for countries with several zones (US, Canada, Australia, Brazil, …) or unknown ones.
+ */
+export function tzForCountry(code, lng) {
+  const cc = String(code || '').toUpperCase();
+  if (cc === 'ES') return lng < -12 ? 'Atlantic/Canary' : 'Europe/Madrid';
+  if (cc === 'PT') return lng < -22 ? 'Atlantic/Azores' : lng < -15 ? 'Atlantic/Madeira' : 'Europe/Lisbon';
+  return COUNTRY_TZ[cc] || null;
+}

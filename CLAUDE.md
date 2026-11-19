@@ -80,6 +80,8 @@ asks routing.openstreetmap.de once per day (max 1 req/s, usage policy), stores l
 Users can switch it off (Trip settings → Walking times; `tp.routing` in localStorage).
 Paste a trip (`importText` in app.js) accepts a share link, a whole chat message containing one, or a backup (JSON);
 `share.codeFromText` finds the code. Needed for iPhone home-screen apps, which can't receive links.
+Time zone: new trips start with the device's zone; once the destination is looked up (Photon `countrycode`), `applyCityTz`
+(app.js) switches to `tzForCountry` (discover.js, tested) unless the zone was set by hand. `tzChecked` marks it done.
 Trip dates: `store.setTripDates(trip, start, end)` (pure, tested) shifts every day and stay by the same number of days; a later end adds empty days, an earlier end drops only empty trailing days (refuses otherwise, trip untouched). Trip settings → First / Last day.
 Timeline rule: `arrival = prev.end + travel`, but not before `fixed` (wait); after `fixed` → `late` warning.
 `hours` uses JS weekdays (0 = Sunday); a missing weekday key means closed; for ticketed sights store last-entry times.
